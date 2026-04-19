@@ -1,0 +1,2382 @@
+---
+title: "Model temperature (number of excess hot days) effect on non-partner sexual violence"
+format: html
+editor: visual
+---
+
+# Environment Setup
+
+```{r setup}
+# Packages
+library(tidyverse)
+library(sf)
+library(spdep)
+library(brms)
+options(brms.backend = "cmdstanr", mc.cores = 4)
+library(posterior)
+# library(ggdist)
+library(bayesplot)
+library(tidybayes)
+library(tidytext)
+library(patchwork)
+library(reliabilitydiag)
+
+# Folder Structure
+root <- rprojroot::has_file("extreme-heat-vs-sv.Rproj")$make_fix_file()
+geo_data_dir <- root("data/raw/geographies")
+proc_data_dir <- root("data/processed")
+src_dir <- root("src")
+fig_dir <- root("figures")
+dir.create(fig_dir, showWarnings = FALSE)
+```
+
+# Notebook settings
+
+```{r}
+# Settings
+nb_name <-  "Model effect of excess number of hot days on non-partner sexual violence"
+seed <- sum(sapply(str_split(nb_name, pattern = "", simplify = TRUE), FUN = utf8ToInt))
+set.seed(seed)
+
+# Viz settings
+col_palette <- c("#dc7726", "#eebb93", "#ecc046", "#f6e0a3", "#0292b7", "#81c9db", "#35A29F", "#97DECE")
+label_map <- c(
+  live_with_partner = "Live with partner (%)",
+  school_level = "Education attainment (%)",
+  rural = "Rural area (%)",
+  over_18 = "Over 18 (%)",
+  heat = "Excess hot days (std.)",
+  sv = "NP-SV victimisation (%)"
+)
+
+# Var settings
+heat_var <- "dev_value_temp_above_1sd_12m"
+heat_label <- "excess_hot_days"
+viol_var <- "sv_np"
+viol_label <- "np_viol"
+covars <- c(
+  "sample_weight",
+  "country",
+  "adm_name",
+  "cluster",
+  "rural",
+  "over_18",
+  "school_level",
+  "live_with_partner",
+  viol_var
+)
+vars <- c(covars, heat_var)
+
+# Computation settings
+iter = 4000
+```
+
+# Functions
+
+```{r}
+source(file.path(src_dir, "viz.R"))
+source(file.path(src_dir, "model_check_utils.R"))
+```
+
+# Import Data
+
+## Geometries
+
+### Mozambique
+
+```{r}
+sf_moz <- (
+  st_read(
+    file.path(geo_data_dir, "Mozambique 2022 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% st_make_valid()
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Zimbabwe
+
+```{r}
+sf_zwe <- (
+  st_read(
+    file.path(geo_data_dir, "Zimbabwe 2015 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% st_make_valid()
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Lesotho
+
+```{r}
+sf_lso <- (
+  st_read(
+    file.path(geo_data_dir, "Lesotho 2023 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% st_make_valid()
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Namibia
+
+```{r}
+sf_nam <- (
+  st_read(
+    file.path(geo_data_dir, "Namibia 2013 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% st_make_valid()
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Zambia
+
+```{r}
+sf_zmb <- (
+  st_read(
+    file.path(geo_data_dir, "Zambia 2018 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% st_make_valid()
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Create combined shapes
+
+```{r}
+sf_all <- (
+  bind_rows(
+    sf_moz,
+    sf_zwe,
+    sf_lso,
+    sf_nam,
+    sf_zmb,
+  )
+)
+```
+
+## Heat & Violence Data
+
+```{r}
+df_heat_viol <- (
+  read_csv(
+    file.path(proc_data_dir, "heat_violence_final_max_month.csv"),
+    show_col_type = FALSE
+  )
+  %>% filter(
+    female == 1,
+  )
+  %>% mutate(
+    over_18 = as.numeric(age > 18)
+  )
+  %>% select(date, all_of(vars))
+  %>% na.omit()
+  %>% group_by(country)
+  %>% mutate(
+    country_sample_weight = sum(sample_weight, na.rm = TRUE)
+  )
+  %>% ungroup()
+  %>% mutate(
+    sample_weight = (
+      1E-3
+      * sample_weight
+      * (
+        sum(sample_weight, na.rm = TRUE)
+        / (length(unique(country)) * country_sample_weight)
+      )
+    )
+  )
+  %>% mutate(
+    sample_weight = nrow(.) * sample_weight / sum(sample_weight, na.rm = TRUE)
+  )
+)
+```
+
+# Stats
+
+## All countries
+
+```{r}
+(
+  df_heat_viol
+  %>% summarise(
+    heat = mean(!!sym(heat_var), na.rm = TRUE),
+    rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    school_level = 100 * sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    .groups = "drop"
+  )
+)
+```
+
+## Country level
+
+```{r}
+(
+  df_heat_viol
+  %>% group_by(country)
+  %>% summarise(
+    heat = mean(!!sym(heat_var), na.rm = TRUE),
+    rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    school_level = 100 * sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    .groups = "drop"
+  )
+  %>% ungroup()
+)
+```
+
+## Admin level
+
+```{r}
+df_heat_viol_adm <- (
+  df_heat_viol
+  %>% group_by(country, adm_name)
+  %>% summarise(
+    heat = mean(!!sym(heat_var), na.rm = TRUE),
+    rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    school_level = 100 * sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    .groups = "drop"
+  )
+  %>% merge(
+    sf_all,
+    by = c("country", "adm_name"),
+    all.x = TRUE
+  )
+  %>% st_as_sf()
+)
+```
+
+# Viz
+
+## Heat
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+
+rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
+
+(
+  df_heat_viol_adm
+  %>% filter(country != "Lesotho")
+  %>% ggplot()
+  + geom_sf(
+    mapping = aes(fill = heat),
+    color = "black",
+    linewidth = 0.1
+  )
+  + paletteer::scale_fill_paletteer_c(
+    palette = "ggthemes::Orange-Blue Diverging",
+    direction = -1,
+    guide = guide_colorbar(
+      label.position = "left",
+      title.position = "right",
+      title.vjust = 1,
+      title.hjust = 0.5,
+      barheight = unit(0.9, "npc")
+    ),
+    limits = rng_heat,
+    rescaler = ~ scales::rescale_mid(., mid = 0),
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = margin(l = 0, r = 25),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    legend.background = element_blank(),
+    legend.position = "inside",
+    legend.position.inside = c(1.07, 0.5),
+    legend.text = element_text(size = 13),
+    legend.title = element_text(size = 14, angle = 90),
+    legend.ticks = element_line(color = "black")
+  )
+  + labs(
+    fill = "Excess hot days (std.)"
+  )
+)
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("map_heat_", heat_label, "_", viol_label, ".svg")
+# )
+```
+
+```{r}
+#| fig-width: 4
+#| fig-height: 2.5
+
+rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
+
+(
+  df_heat_viol_adm
+  %>% filter(country == "Lesotho")
+  %>% ggplot()
+  + geom_sf(
+    mapping = aes(fill = heat),
+    color = "black",
+    linewidth = 0.2
+  )
+  + paletteer::scale_fill_paletteer_c(
+    palette = "ggthemes::Orange-Blue Diverging",
+    direction = -1,
+    limits = rng_heat,
+    rescaler = ~ scales::rescale_mid(., mid = 0),
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    plot.background = element_rect(fill = NA, color = "black", linewidth = 3),
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  )
+  + guides(
+    fill = "none"
+  )
+  + labs(
+    fill = "Excess hot days (std.)"
+  )
+)
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("map_heat_", heat_label, "_", viol_label, "_LSO.svg"),
+#   bg = "transparent"
+# )
+```
+
+## Violence
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+
+rng_sv <- range(df_heat_viol_adm$sv, na.rm = TRUE)
+
+(
+  df_heat_viol_adm
+  %>% filter(country != "Lesotho")
+  %>% ggplot()
+  + geom_sf(
+    mapping = aes(fill = sv),
+    color = "black",
+    linewidth = 0.1
+  )
+  + paletteer::scale_fill_paletteer_c(
+    palette = "grDevices::Rocket",
+    direction = -1,
+    guide = guide_colorbar(
+      label.position = "left",
+      title.position = "right",
+      title.vjust = 1,
+      title.hjust = 0.5,
+      barheight = unit(0.9, "npc")
+    ),
+    limits = rng_sv,
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = margin(r = 25),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    legend.background = element_blank(),
+    legend.position = "inside",
+    legend.position.inside = c(1.07, 0.5),
+    legend.text = element_text(size = 13),
+    legend.title = element_text(size = 14, angle = 90),
+    legend.ticks = element_line(color = "black")
+  )
+  + labs(
+    fill = label_map[["sv"]]
+  )
+)
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("map_sv_", heat_label, "_", viol_label, ".svg")
+# )
+```
+
+```{r}
+#| fig-width: 4
+#| fig-height: 2.5
+
+rng_sv <- range(df_heat_viol_adm$sv, na.rm = TRUE)
+
+(
+  df_heat_viol_adm
+  %>% filter(country == "Lesotho")
+  %>% ggplot()
+  + geom_sf(
+    mapping = aes(fill = sv),
+    color = "black",
+    linewidth = 0.2
+  )
+  + paletteer::scale_fill_paletteer_c(
+    palette = "grDevices::Rocket",
+    direction = -1,
+    limits = rng_sv
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    plot.background = element_rect(fill = NA, color = "black", linewidth = 3),
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  )
+  + guides(
+    fill = "none"
+  )
+  + labs(
+    fill = label_map[["sv"]]
+  )
+)
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("map_sv_", heat_label, "_", viol_label, "_LSO.svg"),
+#   bg = "transparent"
+# )
+```
+
+# Prepare Data
+
+## Restrict locations
+
+```{r}
+sf_vacs <- (
+  sf_all
+  %>% filter(
+    country %in% (df_heat_viol$country %>% unique()),
+    adm_name %in% (df_heat_viol$adm_name %>% unique())
+  )
+)
+```
+
+## Extract model subsets
+
+```{r}
+df_model <- (
+  df_heat_viol
+  # %>% filter(
+  #   female == 1,
+  # )
+  # %>% select(date, all_of(vars))
+  # %>% na.omit()
+  %>% merge(
+    sf_vacs %>% as.data.frame() %>% select(country, adm_name),
+    by = c("country", "adm_name"),
+    all.x = TRUE
+  )
+  %>% mutate(
+    country = factor(country),
+    adm_name = factor(adm_name),
+    cluster = factor(cluster),
+    school_level = factor(
+      school_level,
+      levels = sort(unique(school_level)),
+      ordered = TRUE
+    ),
+    heat := scale(!!sym(heat_var))
+  )
+)
+```
+
+## Generate adjacency matrix
+
+```{r}
+nb_list <- poly2nb(sf_vacs)
+W <- nb2mat(nb_list, style = "B", zero.policy = TRUE)
+rownames(W) <- sf_vacs$adm_name
+colnames(W) <- sf_vacs$adm_name
+levs <- levels(df_model$adm_name)
+W_ord <- W[levs, levs]
+```
+
+```{r}
+edges <- (
+  geostan::edges(W, unique_pairs_only = TRUE, shape = sf_vacs$geometry)
+)
+graph <- st_geometry(edges)
+```
+
+```{r}
+plot(sf_vacs$geometry, lwd = .15)
+plot(graph, add = TRUE, type = "p", col = "red")
+plot(graph, add = TRUE, type = "l", col = "black")
+```
+
+# Modeling
+
+## Random Intercepts by admin level and cluster
+
+```{r}
+set.seed(seed)
+stanvars <- stanvar(6, "num_pred")
+
+prior_list_ranint_adm_clu <- c(
+  prior(student_t(3, -2, 2), class = "Intercept"),
+  prior(normal(0, 0.8 / sqrt(num_pred)), class = "b"),
+  prior(exponential(1/0.2), class = "sd"),
+  prior(dirichlet(1), class = "simo", coef = "moschool_level1")
+)
+
+form_ranint_adm_clu <- bf(
+  as.formula(
+    paste(
+      viol_var,
+      "| weights(sample_weight)",
+      "~",
+      "(
+        1 
+        + country
+        + rural
+        + live_with_partner
+        + over_18
+        + mo(school_level)
+        + heat
+        + (1 | adm_name/cluster)
+      )"
+    )
+  )
+)
+fit_ranint_adm_clu <- brm(
+  formula = form_ranint_adm_clu,
+  family = bernoulli("logit"),
+  prior = prior_list_ranint_adm_clu,
+  data = df_model,
+  stanvars = stanvars,
+  seed = seed,
+  refresh = 1000,
+  warmup = 1000,
+  iter = 2000,
+  # control = list(adapt_delta = adapt_delta),
+  sample_prior = TRUE
+)
+```
+
+### Model Checks
+
+```{r}
+#| fig-width: 12
+#| fig-height: 12
+bayesplot::mcmc_pairs(
+  as.array(fit_ranint_adm_clu), 
+  pars = c(
+    "b_Intercept", 
+    "sd_adm_name__Intercept", 
+    "sd_adm_name:cluster__Intercept", 
+    "b_rural",
+    "b_live_with_partner",
+    "b_over_18",
+    "bsp_moschool_level", 
+    "b_heat"
+  ),
+  np = nuts_params(fit_ranint_adm_clu),
+  np_style = bayesplot::pairs_style_np(
+    div_color = "green",
+    div_shape = 20,
+    div_size = 3
+  )
+)
+```
+
+```{r}
+plot(fit_ranint_adm_clu, variable = "prior_b", regex = TRUE, nvariables = 3)
+```
+
+```{r}
+plot(fit_ranint_adm_clu, variable = "b_rural", regex = TRUE, nvariables = 3)
+```
+
+```{r}
+bayestestR::effective_sample(fit_ranint_adm_clu)
+```
+
+### Model Output
+
+#### Summary
+
+##### Raw draws
+
+```{r}
+bayestestR::describe_posterior(
+  fit_ranint_adm_clu,
+  effects = "all",
+  component = "all",
+  test = c("p_direction", "p_significance"),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+##### Transformed draws
+
+```{r}
+trans_post_ranint_adm_clu <- (
+  fit_ranint_adm_clu
+  %>% as.data.frame()
+  %>% select(
+    -c(
+      contains("adm_name"),
+      contains("prior"),
+      lprior, 
+      lp__,
+      Intercept
+    )
+  )
+  %>% mutate(
+    across(
+      -c(contains("simo")),
+      ~ exp(.)
+    )
+  )
+)
+```
+
+```{r}
+bayestestR::describe_posterior(
+  trans_post_ranint_adm_clu,
+  effects = "all",
+  component = "all",
+  test = c(),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+#### Baseline
+
+```{r}
+df_base_sv_by_country_ranint_adm_clu <- (
+  fit_ranint_adm_clu
+  %>% as_draws_df()
+  %>% select(
+    b_Intercept,
+    contains("b_country")
+  )
+  %>% mutate(
+    b_countryLesotho = 0
+  )
+  %>% pivot_longer(
+    cols = -b_Intercept,
+    names_to = c("variable", "country"),
+    names_pattern = "(b_country)(.*)",
+    values_to = "b_country"
+  )
+  %>% mutate(
+    logitp_baseline_sv = b_Intercept + b_country,
+    p_baseline_sv = 1 / (1 + exp(-logitp_baseline_sv))
+  )
+  %>% select(country, p_baseline_sv)
+)
+
+df_base_sv_by_country_ranint_adm_clu_stats <- (
+  df_base_sv_by_country_ranint_adm_clu
+  %>% group_by(country)
+  %>% summarise(
+    median_p_baseline_sv = median(p_baseline_sv, na.rm = TRUE),
+    mean_p_baseline_sv = mean(p_baseline_sv, na.rm = TRUE),
+    lower1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_low,
+    upper1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_high,
+    lower2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_low,
+    upper2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_high,
+  )
+  %>% ungroup()
+)
+```
+
+```{r}
+#| fig-width: 4.5
+#| fig-heigh: 3
+(
+  ggplot(
+    data = df_base_sv_by_country_ranint_adm_clu,
+    mapping = aes(
+      y = fct_reorder(country, p_baseline_sv, .fun = ~ -median(.)),
+      x = p_baseline_sv
+    )
+  )
+  + ggridges::geom_density_ridges(
+      aes(height = after_stat(scaled)),
+      stat = "density",
+      orientation = "x",
+      scale = 0.6,
+      rel_min_height = 0.01,
+      alpha = 0.7,
+      color = NA,
+      fill = "#FDD0A2FF"
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_ranint_adm_clu_stats,
+      aes(y = country, yend = country, x = lower2_p, xend = upper2_p),
+      linewidth = 1,
+      alpha = 0.4,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_ranint_adm_clu_stats,
+      aes(y = country, yend = country, x = lower1_p, xend = upper1_p),
+      linewidth = 1.5,
+      alpha = 0.7,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_point(
+      data = df_base_sv_by_country_ranint_adm_clu_stats,
+      aes(y = country, x = median_p_baseline_sv),
+      color = "#A63603FF",
+      size = 3,
+      inherit.aes = FALSE
+  )
+  + geom_vline(xintercept = 0, linetype = "dashed", color = "gray50")
+  + theme(
+      panel.background = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+      plot.background = element_blank(),
+      plot.title = element_text(size = 16, hjust = 0.5),
+      plot.subtitle = element_text(size = 14, hjust = 0.5),
+      axis.title.y = element_blank(),
+      axis.title.x = element_text(size = 16),
+      axis.text.y = element_text(size = 15),
+      axis.text.x = element_text(size = 15),
+      legend.background = element_blank(),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 13),
+  )
+  + labs(
+      x = "Baseline Sexual Violence (%)"
+  )
+  + scale_y_discrete(
+      expand = expansion(mult = c(0.1, 0.25))
+  )
+  + scale_x_continuous(
+      labels = scales::percent_format(accuracy = 1)
+  )
+) 
+```
+
+#### Heat Marginal Effects
+
+##### Population level
+
+```{r}
+generate_cont_marginal_df(fit_ranint_adm_clu, df_model, covs = c("heat"))
+```
+
+```{r}
+#| fig-width: 3.5
+#| fig-height: 2.4
+(
+  plot_continuous_marginal(fit_ranint_adm_clu, df_model, covs = c("heat"), grid_points = 20, ndraws = 4000)
+  + labs(
+    y = "NP violence (%)"
+  )
+)
+ggsave(
+  path = fig_dir,
+  filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_ranint_adm_clu.png")
+)
+```
+
+#### Heat Variable Posterior
+
+```{r}
+df_heat_pop_adm_clu <- (
+  fit_ranint_adm_clu
+  %>% as.data.frame()
+  %>% mutate(heat_pop = exp(b_heat))
+  %>% summarise(
+    median_val = median(heat_pop),
+    lower1_val = bayestestR::hdi(heat_pop, ci = 0.5)$CI_low,
+    upper1_val = bayestestR::hdi(heat_pop, ci = 0.5)$CI_high,
+    lower2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_low,
+    upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
+  )
+  %>% mutate(
+    country = "Overall"
+  )
+)
+```
+
+```{r}
+#| fig-width: 5
+#| fig-height: 1.2
+
+lims <- c(
+  min(df_heat_pop_adm_clu$lower2_val, 0.95), 
+  max(df_heat_pop_adm_clu$upper2_val)
+)
+
+p1 <- (
+  df_heat_pop_adm_clu
+  %>% ggplot(
+    mapping = aes(
+      y = country
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[6],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[5],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+      y = country,
+    ),
+    size = 4,
+    color = col_palette[5]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),,
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(size = 16),
+    axis.text = element_text(size = 15),
+  )
+  + labs(
+    y = "Country",
+    x = "Temperature Risk Odds Ratio"
+  )
+)
+
+p1
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("heat_post_", heat_label, "_", viol_label, "_adm_clu.png")
+# )
+```
+
+### Calibration Checks
+
+```{r}
+#| fig-width: 3.5
+#| fig-height: 3
+(
+  plot_calibration(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
+  + scale_y_continuous(
+    limits = c(0, 0.6666667)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_ranint_adm_clu.svg")
+# )
+```
+
+### Posterior Predictive Checks
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2
+(
+  plot_ppc_rootogram_weighted(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
+  + theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.92, 0.8)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_ranint_adm_clu.svg")
+# )
+```
+
+## Random Intercepts by admin level and cluster + Fixed interaction: country \* Heat
+
+```{r}
+set.seed(seed)
+stanvars <- stanvar(7, "num_pred")
+
+prior_list_fix_int_cc <- c(
+  prior(student_t(3, -2, 2), class = "Intercept"),
+  prior(normal(0, 0.8 / sqrt(num_pred)), class = "b"),
+  prior(dirichlet(1), class = "simo", coef = "moschool_level1")
+)
+
+form_fix_int_cc <- bf(
+  as.formula(
+    paste(
+      viol_var,
+      "| weights(sample_weight)",
+      "~",
+      "(
+        1 
+        + (1 | adm_name/cluster)
+        + rural
+        + live_with_partner
+        + over_18
+        + mo(school_level)
+        + country * heat
+      )"
+    )
+  )
+)
+fit_fix_int_cc <- brm(
+  formula = form_fix_int_cc,
+  family = bernoulli("logit"),
+  prior = prior_list_fix_int_cc,
+  data = df_model,
+  stanvars = stanvars,
+  seed = seed,
+  refresh = 1000,
+  warmup = 1000,
+  iter = iter,
+  # control = list(adapt_delta = adapt_delta),
+  # sample_prior = "only"
+  sample_prior = TRUE
+)
+```
+
+### Model Checks
+
+```{r}
+#| fig-width: 12
+#| fig-height: 12
+bayesplot::mcmc_pairs(
+  as.array(fit_fix_int_cc), 
+  pars = c(
+    "b_Intercept", 
+    "b_rural",
+    "b_live_with_partner",
+    "b_over_18",
+    "bsp_moschool_level", 
+    "b_heat",
+    "sd_adm_name__Intercept",
+    "sd_adm_name:cluster__Intercept"
+  ),
+  np = nuts_params(fit_fix_int_cc),
+  np_style = bayesplot::pairs_style_np(
+    div_color = "green",
+    div_shape = 20,
+    div_size = 3
+  )
+)
+```
+
+```{r}
+plot(fit_fix_int_cc, variable = "prior_b", regex = TRUE, nvariables = 3)
+```
+
+```{r}
+plot(fit_fix_int_cc, variable = "b_rural", regex = TRUE, nvariables = 3)
+```
+
+```{r}
+bayestestR::effective_sample(fit_fix_int_cc)
+```
+
+### Model Output
+
+#### Summary
+
+##### Raw draws
+
+```{r}
+bayestestR::describe_posterior(
+  fit_fix_int_cc,
+  effects = "all",
+  component = "all",
+  test = c("p_direction", "p_significance"),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+##### Transformed draws
+
+```{r}
+trans_post_fix_int_cc <- (
+  fit_fix_int_cc
+  %>% as.data.frame()
+  %>% select(
+    -c(
+      contains("adm_name"),
+      contains("prior"),
+      lprior, 
+      lp__,
+      Intercept
+    )
+  )
+  %>% mutate(
+    across(
+      -c(contains("simo")),
+      ~ exp(.)
+    )
+  )
+)
+```
+
+```{r}
+bayestestR::describe_posterior(
+  trans_post_fix_int_cc,
+  effects = "all",
+  component = "all",
+  test = c(),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+#### Baseline
+
+```{r}
+df_base_sv_by_country_fix_int_cc <- (
+  fit_fix_int_cc
+  %>% as_draws_df()
+  %>% select(
+    b_Intercept,
+    (contains("b_country") & !contains("heat"))
+  )
+  %>% mutate(
+    b_countryLesotho = 0
+  )
+  %>% pivot_longer(
+    cols = -b_Intercept,
+    names_to = c("variable", "country"),
+    names_pattern = "(b_country)(.*)",
+    values_to = "b_country"
+  )
+  %>% mutate(
+    logitp_baseline_sv = b_Intercept + b_country,
+    p_baseline_sv = 1 / (1 + exp(-logitp_baseline_sv))
+  )
+  %>% select(country, p_baseline_sv)
+)
+
+df_base_sv_by_country_fix_int_cc_stats <- (
+  df_base_sv_by_country_fix_int_cc
+  %>% group_by(country)
+  %>% summarise(
+    median_p_baseline_sv = median(p_baseline_sv, na.rm = TRUE),
+    mean_p_baseline_sv = mean(p_baseline_sv, na.rm = TRUE),
+    lower1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_low,
+    upper1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_high,
+    lower2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_low,
+    upper2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_high,
+  )
+  %>% ungroup()
+)
+```
+
+```{r}
+#| fig-width: 4.5
+#| fig-heigh: 3
+(
+  ggplot(
+    data = df_base_sv_by_country_fix_int_cc,
+    mapping = aes(
+      y = fct_reorder(country, p_baseline_sv, .fun = ~ -median(.)),
+      x = p_baseline_sv
+    )
+  )
+  + ggridges::geom_density_ridges(
+      aes(height = after_stat(scaled)),
+      stat = "density",
+      orientation = "x",
+      scale = 0.6,
+      rel_min_height = 0.01,
+      alpha = 0.7,
+      color = NA,
+      fill = "#FDD0A2FF"
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_fix_int_cc_stats,
+      aes(y = country, yend = country, x = lower2_p, xend = upper2_p),
+      linewidth = 1,
+      alpha = 0.4,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_fix_int_cc_stats,
+      aes(y = country, yend = country, x = lower1_p, xend = upper1_p),
+      linewidth = 1.5,
+      alpha = 0.7,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_point(
+      data = df_base_sv_by_country_fix_int_cc_stats,
+      aes(y = country, x = median_p_baseline_sv),
+      color = "#A63603FF",
+      size = 3,
+      inherit.aes = FALSE
+  )
+  + geom_vline(xintercept = 0, linetype = "dashed", color = "gray50")
+  + theme(
+      panel.background = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+      plot.background = element_blank(),
+      plot.title = element_text(size = 16, hjust = 0.5),
+      plot.subtitle = element_text(size = 14, hjust = 0.5),
+      axis.title.y = element_blank(),
+      axis.title.x = element_text(size = 16),
+      axis.text.y = element_text(size = 15),
+      axis.text.x = element_text(size = 15),
+      legend.background = element_blank(),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 13),
+  )
+  + labs(
+      x = "Baseline Sexual Violence (%)"
+  )
+  + scale_y_discrete(
+      expand = expansion(mult = c(0.1, 0.25))
+  )
+  + scale_x_continuous(
+      # limits = lims,
+      labels = scales::percent_format(accuracy = 1)
+  )
+) 
+```
+
+#### Heat Marginal Effects
+
+##### Population level
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+(
+  plot_continuous_marginal(fit_fix_int_cc, df_model, covs = c("heat"))
+  + scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_fix_int_cc.png")
+# )
+```
+
+##### By Country
+
+```{r}
+#| fig-width: 12
+#| fig-height: 3
+(
+  plot_single_continuous_marginal_by_group(fit_fix_int_cc, df_model, cov = "heat")
+  + scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("marginal_prob_heat_main_effect_by_country_", heat_label, "_", viol_label, "_fix_int_cc.png")
+# )
+```
+
+#### Heat Variable Posterior
+
+```{r}
+df_heat_fix_int_cc <- (
+  fit_fix_int_cc
+  %>% as.data.frame()
+  %>% mutate(
+    `b_countryLesotho:heat` = 0
+  )
+  %>% select(
+    heat_pop = b_heat,
+    contains(":heat")
+  )
+  %>% mutate(
+    across(
+      .cols = -heat_pop, 
+      .fns = ~ exp((.) + heat_pop),
+      .names = "{.col}"
+    ),
+    heat_pop = exp(heat_pop)
+  )
+  %>% rename(
+    Overall = heat_pop,
+  )
+  %>% rename_with(
+    .cols = -Overall,
+    .fn = ~ str_match(., "b_country(.*?):heat")[,2]
+  )
+  %>% pivot_longer(
+    cols = everything(),
+    names_to = "country",
+    values_to = "value"
+  )
+  %>% group_by(country)
+  %>% summarise(
+    median_val = median(value),
+    lower1_val = bayestestR::hdi(value, ci = 0.5)$CI_low,
+    upper1_val = bayestestR::hdi(value, ci = 0.5)$CI_high,
+    lower2_val = bayestestR::hdi(value, ci = 0.95)$CI_low,
+    upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
+    .groups = "drop"
+  )
+)
+```
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+
+lims <- c(
+  min(df_heat_fix_int_cc$lower2_val, 0.9), 
+  max(df_heat_fix_int_cc$upper2_val)
+)
+
+p1 <- (
+  df_heat_fix_int_cc
+  %>% filter(country == "Overall")
+  %>% ggplot(
+    mapping = aes(
+      y = country
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[6],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[5],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+      y = country,
+    ),
+    size = 4,
+    color = col_palette[5]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),,
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 15),
+  )
+  + labs(
+    y = "Country",
+    x = "Temperature Risk Odds Ratio"
+  )
+)
+
+p2 <- (
+  df_heat_fix_int_cc
+  %>% filter(country != "Overall")
+  %>% ggplot(
+    mapping = aes(
+      y = fct_reorder(country, desc(median_val))
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[2],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[1],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+    ),
+    size = 4,
+    color = col_palette[1]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),,
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 13),
+  )
+  + labs(
+    y = "Country",
+    x = "Temperature Risk Odds Ratio"
+  )
+)
+
+(
+  p1 / plot_spacer() / p2
+  + plot_layout(
+    axes = "collect",
+    heights = c(1, -0.7, 5)
+  )
+)
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("heat_post_", heat_label, "_", viol_label, "_fix_int_cc.svg")
+# )
+```
+
+### Calibration Checks
+
+```{r}
+#| fig-width: 3.5
+#| fig-height: 3
+plot_calibration(fit_fix_int_cc, df_model, outcome_var = viol_var)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_fix_int_cc.png")
+# )
+```
+
+### Posterior Predictive Checks
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2
+(
+  plot_ppc_rootogram(fit_fix_int_cc, df_model, outcome_var = viol_var)
+  + theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.92, 0.8)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_fix_int_cc.png")
+# )
+```
+
+## Random slope by country
+
+```{r}
+set.seed(seed)
+stanvars <- stanvar(6, "num_pred")
+
+prior_list_ranef_cou <- c(
+  prior(student_t(3, -2, 2), class = "Intercept"),
+  prior(normal(0, 0.8 / sqrt(num_pred)), class = "b"),
+  prior(exponential(1/0.2), class = "sd"),
+  prior(dirichlet(1), class = "simo", coef = "moschool_level1")
+)
+
+form_ranef_cou <- bf(
+  as.formula(
+    paste(
+      viol_var,
+      "| weights(sample_weight)",
+      "~",
+      "(
+        1 
+        + (1 | adm_name/cluster)
+        + country
+        + rural
+        + live_with_partner
+        + over_18
+        + mo(school_level)
+        + heat
+        + (-1 + heat | country)
+      )"
+    )
+  )
+)
+fit_ranef_cou <- brm(
+  formula = form_ranef_cou,
+  family = bernoulli("logit"),
+  prior = prior_list_ranef_cou,
+  data = df_model,
+  stanvars = stanvars,
+  seed = seed,
+  refresh = 1000,
+  warmup = 1000,
+  iter = iter,
+  control = list(adapt_delta = 0.99),
+  # sample_prior = "only"
+  sample_prior = TRUE
+)
+```
+
+### Model Checks
+
+```{r}
+#| fig-width: 12
+#| fig-height: 12
+bayesplot::mcmc_pairs(
+  as.array(fit_ranef_cou), 
+  pars = c(
+    "b_Intercept", 
+    "sd_adm_name__Intercept",
+    "sd_adm_name:cluster__Intercept",
+    "r_country[Lesotho,heat]",
+    "b_rural",
+    "b_live_with_partner",
+    "b_over_18",
+    "bsp_moschool_level", 
+    "b_heat"
+  ),
+  np = nuts_params(fit_ranef_cou),
+  np_style = bayesplot::pairs_style_np(
+    div_color = "green",
+    div_shape = 20,
+    div_size = 3
+  )
+)
+```
+
+```{r}
+plot(fit_ranef_cou, variable = "prior_b", regex = TRUE, nvariables = 3)
+```
+
+```{r}
+plot(fit_ranef_cou, variable = "b_rural", regex = TRUE, nvariables = 3)
+```
+
+```{r}
+bayestestR::effective_sample(fit_ranef_cou)
+```
+
+### Model Output
+
+#### Summary
+
+##### Raw draws
+
+```{r}
+bayestestR::describe_posterior(
+  fit_ranef_cou,
+  effects = "all",
+  component = "all",
+  test = c("p_direction", "p_significance"),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+##### Transformed draws
+
+```{r}
+trans_post_ranef_cou <- (
+  fit_ranef_cou
+  %>% as.data.frame()
+  %>% select(
+    -c(
+      contains("adm_name"),
+      contains("prior"),
+      lprior, 
+      lp__,
+      Intercept
+    )
+  )
+  %>% mutate(
+    across(
+      -c(contains("simo")),
+      ~ exp(.)
+    )
+  )
+)
+```
+
+```{r}
+bayestestR::describe_posterior(
+  trans_post_ranef_cou,
+  effects = "all",
+  component = "all",
+  test = c(),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+#### Baseline
+
+```{r}
+df_base_sv_by_country_ranef_cou <- (
+  fit_ranef_cou
+  %>% as_draws_df()
+  %>% select(
+    b_Intercept,
+    contains("b_country")
+  )
+  %>% mutate(
+    b_countryLesotho = 0
+  )
+  %>% pivot_longer(
+    cols = -b_Intercept,
+    names_to = c("variable", "country"),
+    names_pattern = "(b_country)(.*)",
+    values_to = "b_country"
+  )
+  %>% mutate(
+    logitp_baseline_sv = b_Intercept + b_country,
+    p_baseline_sv = 1 / (1 + exp(-logitp_baseline_sv))
+  )
+  %>% select(country, p_baseline_sv)
+)
+
+df_base_sv_by_country_ranef_cou_stats <- (
+  df_base_sv_by_country_ranef_cou
+  %>% group_by(country)
+  %>% summarise(
+    median_p_baseline_sv = median(p_baseline_sv, na.rm = TRUE),
+    mean_p_baseline_sv = mean(p_baseline_sv, na.rm = TRUE),
+    lower1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_low,
+    upper1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_high,
+    lower2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_low,
+    upper2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_high,
+  )
+  %>% ungroup()
+)
+```
+
+```{r}
+#| fig-width: 4.5
+#| fig-heigh: 3
+(
+  ggplot(
+    data = df_base_sv_by_country_ranef_cou,
+    mapping = aes(
+      y = fct_reorder(country, p_baseline_sv, .fun = ~ -median(.)),
+      x = p_baseline_sv
+    )
+  )
+  + ggridges::geom_density_ridges(
+      aes(height = after_stat(scaled)),
+      stat = "density",
+      orientation = "x",
+      scale = 0.6,
+      rel_min_height = 0.01,
+      alpha = 0.7,
+      color = NA,
+      fill = "#FDD0A2FF"
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_ranef_cou_stats,
+      aes(y = country, yend = country, x = lower2_p, xend = upper2_p),
+      linewidth = 1,
+      alpha = 0.4,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_ranef_cou_stats,
+      aes(y = country, yend = country, x = lower1_p, xend = upper1_p),
+      linewidth = 1.5,
+      alpha = 0.7,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_point(
+      data = df_base_sv_by_country_ranef_cou_stats,
+      aes(y = country, x = median_p_baseline_sv),
+      color = "#A63603FF",
+      size = 3,
+      inherit.aes = FALSE
+  )
+  + geom_vline(xintercept = 0, linetype = "dashed", color = "gray50")
+  + theme(
+      panel.background = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+      plot.background = element_blank(),
+      plot.title = element_text(size = 16, hjust = 0.5),
+      plot.subtitle = element_text(size = 14, hjust = 0.5),
+      axis.title.y = element_blank(),
+      axis.title.x = element_text(size = 16),
+      axis.text.y = element_text(size = 15),
+      axis.text.x = element_text(size = 15),
+      legend.background = element_blank(),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 13),
+  )
+  + labs(
+      x = "Baseline Sexual Violence (%)"
+  )
+  + scale_y_discrete(
+      expand = expansion(mult = c(0.1, 0.25))
+  )
+  + scale_x_continuous(
+      labels = scales::percent_format(accuracy = 1)
+  )
+) 
+```
+
+#### Heat Marginal Effects
+
+##### Population level
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+(
+  plot_continuous_marginal(fit_ranef_cou, df_model, covs = c("heat"))
+  + scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_ranef_cou.png")
+# )
+```
+
+##### By Country
+
+```{r}
+#| fig-width: 11
+#| fig-height: 2.4
+(
+  plot_single_continuous_marginal_by_group(fit_ranef_cou, df_model, grid_points = 15, ndraws = 4000, cov = "heat")
+  + labs(
+    y = "NP violence (%)"
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("marginal_prob_heat_main_effect_by_country_", heat_label, "_", viol_label, "_ranef_cou.png")
+# )
+```
+
+#### Heat Variable Posterior
+
+```{r}
+df_heat_pop_ranef_cou <- (
+  fit_ranef_cou
+  %>% as.data.frame()
+  %>% select(heat_pop = b_heat)
+)
+df_heat_gr_ranef_cou <- (
+  as_tibble(ranef(fit_ranef_cou, summary = FALSE)$country[, , "heat"])
+  %>% bind_cols(df_heat_pop_ranef_cou)
+  %>% mutate(
+    across(
+      .cols = -heat_pop, 
+      .fns = ~ exp((.) + heat_pop),
+      .names = "{.col}"
+    )
+  )
+  %>% select(-heat_pop)
+  %>% pivot_longer(
+    cols = everything(),
+    names_to = "country",
+    values_to = "value"
+  )
+  %>% group_by(country)
+  %>% summarise(
+    median_val = median(value),
+    lower1_val = bayestestR::hdi(value, ci = 0.5)$CI_low,
+    upper1_val = bayestestR::hdi(value, ci = 0.5)$CI_high,
+    lower2_val = bayestestR::hdi(value, ci = 0.95)$CI_low,
+    upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
+    .groups = "drop"
+  )
+)
+
+df_heat_pop_ranef_cou_summ <- (
+  df_heat_pop_ranef_cou
+  %>% mutate(
+    heat_pop = exp(heat_pop)
+  )
+  %>% summarise(
+    median_val = median(heat_pop),
+    lower1_val = bayestestR::hdi(heat_pop, ci = 0.5)$CI_low,
+    upper1_val = bayestestR::hdi(heat_pop, ci = 0.5)$CI_high,
+    lower2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_low,
+    upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
+  )
+  %>% mutate(
+    country = "Overall"
+  )
+)
+
+df_heat_ranef_cou <- (
+  bind_rows(
+    df_heat_pop_ranef_cou_summ, 
+    df_heat_gr_ranef_cou
+  )
+)
+```
+
+```{r}
+#| fig-width: 4
+#| fig-height: 3
+
+lims <- c(
+  min(df_heat_ranef_cou$lower2_val, 0.9), 
+  max(df_heat_ranef_cou$upper2_val)
+)
+
+p1 <- (
+  df_heat_ranef_cou
+  %>% filter(country == "Overall")
+  %>% ggplot(
+    mapping = aes(
+      y = country
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[6],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[5],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+      y = country,
+    ),
+    size = 4,
+    color = col_palette[5]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),,
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 15),
+  )
+  + labs(
+    y = "Country",
+    x = "Temperature Risk Odds Ratio"
+  )
+)
+
+p2 <- (
+  df_heat_ranef_cou
+  %>% filter(country != "Overall")
+  %>% ggplot(
+    mapping = aes(
+      y = fct_reorder(country, desc(median_val))
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[2],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[1],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+    ),
+    size = 4,
+    color = col_palette[1]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 15, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),,
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_blank(),
+    axis.text = element_text(size = 13),
+  )
+  + labs(
+    y = "Country",
+    x = "Temperature Risk Odds Ratio"
+  )
+)
+
+(
+  p1 / plot_spacer() / p2
+  + plot_layout(
+    axes = "collect",
+    heights = c(1, -0.7, 5)
+  )
+)
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("heat_post_", heat_label, "_", viol_label, "_ranef_cou.png")
+# )
+```
+
+### Calibration Checks
+
+```{r}
+#| fig-width: 3.5
+#| fig-height: 3
+(
+  plot_calibration(fit_ranef_cou, df_model, outcome_var = viol_var)
+  + scale_y_continuous(
+    limits = c(0, 0.6666667)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_ranef_cou.svg")
+# )
+```
+
+### Posterior Predictive Checks
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2
+(
+  plot_ppc_rootogram_weighted(fit_ranef_cou, df_model, outcome_var = viol_var)
+  + theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.92, 0.8)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_ranef_cou.svg")
+# )
+```
+
+## With spatial correlations
+
+```{r}
+set.seed(seed)
+stanvars <- stanvar(6, "num_pred")
+
+prior_list_sp <- c(
+  prior(student_t(3, -1, 2), class = "Intercept"),
+  prior(normal(0, 0.8 / sqrt(num_pred)), class = "b"),
+  prior(dirichlet(1), class = "simo", coef = "moschool_level1"),
+  prior(beta(1, 1), class = "car"),
+  prior(exponential(0.5), class = "sdcar")
+)
+
+form_sp <- bf(
+  as.formula(
+    paste(
+      viol_var,
+      "| weights(sample_weight)",
+      "~",
+      "(
+        1
+        + country
+        + rural
+        + live_with_partner
+        + over_18
+        + mo(school_level)
+        + heat
+        + car(W, gr = adm_name, type = 'escar')
+      )"
+    )
+  )
+)
+fit_sp <- brm(
+  formula = form_sp,
+  family = bernoulli("logit"),
+  prior = prior_list_sp,
+  data = df_model,
+  data2 = list(W = W_ord),
+  stanvars = stanvars,
+  seed = seed,
+  refresh = 1000,
+  warmup = 1000,
+  iter = iter,
+  control = list(adapt_delta = 0.95),
+  sample_prior = TRUE
+)
+```
+
+### Model Checks
+
+```{r}
+#| fig-width: 12
+#| fig-height: 12
+bayesplot::mcmc_pairs(
+  as.array(fit_sp), 
+  pars = c(
+    "b_Intercept", 
+    "b_rural",
+    "b_live_with_partner",
+    "b_over_18",
+    "bsp_moschool_level",
+    "b_heat",
+    "sdcar",
+    "rcar[1]"
+  ),
+  np = nuts_params(fit_sp),
+  np_style = bayesplot::pairs_style_np(
+    div_color = "green",
+    div_shape = 20,
+    div_size = 3
+  )
+)
+```
+
+```{r}
+vars_to_plot <- c(
+  "prior_car",
+  "car",
+  "prior_sdcar",
+  "sdcar"
+)
+plot(fit_sp, variable = vars_to_plot, regex = FALSE, nvariables = 4)
+```
+
+```{r}
+bayestestR::effective_sample(fit_sp)
+```
+
+### Model Output
+
+#### Summary
+
+##### Raw draws
+
+```{r}
+bayestestR::describe_posterior(
+  fit_sp,
+  effects = "all",
+  component = "all",
+  test = c("p_direction", "p_significance"),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+##### Transformed draws
+
+```{r}
+trans_post_sp <- (
+  fit_sp
+  %>% as.data.frame()
+  %>% select(
+    -c(
+      contains("adm_name"),
+      contains("cluster"),
+      contains("prior"),
+      contains("rcar"),
+      lprior, 
+      lp__,
+      Intercept
+    )
+  )
+  %>% mutate(
+    across(
+      -c(contains("simo")),
+      ~ exp(.)
+    )
+  )
+)
+```
+
+```{r}
+bayestestR::describe_posterior(
+  trans_post_sp,
+  effects = "all",
+  component = "all",
+  test = c(),
+  centrality = "all",
+  ci_method = "HDI"
+)
+```
+
+#### Baseline
+
+```{r}
+df_base_sv_by_country_sp <- (
+  fit_sp
+  %>% as_draws_df()
+  %>% select(
+    b_Intercept,
+    contains("b_country")
+  )
+  %>% mutate(
+    b_countryLesotho = 0
+  )
+  %>% pivot_longer(
+    cols = -b_Intercept,
+    names_to = c("variable", "country"),
+    names_pattern = "(b_country)(.*)",
+    values_to = "b_country"
+  )
+  %>% mutate(
+    logitp_baseline_sv = b_Intercept + b_country,
+    p_baseline_sv = 1 / (1 + exp(-logitp_baseline_sv))
+  )
+  %>% select(country, p_baseline_sv)
+)
+
+df_base_sv_by_country_sp_stats <- (
+  df_base_sv_by_country_sp
+  %>% group_by(country)
+  %>% summarise(
+    median_p_baseline_sv = median(p_baseline_sv, na.rm = TRUE),
+    mean_p_baseline_sv = mean(p_baseline_sv, na.rm = TRUE),
+    lower1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_low,
+    upper1_p = bayestestR::hdi(p_baseline_sv, ci = 0.5)$CI_high,
+    lower2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_low,
+    upper2_p = bayestestR::hdi(p_baseline_sv, ci = 0.95)$CI_high,
+  )
+  %>% ungroup()
+)
+```
+
+```{r}
+#| fig-width: 4.5
+#| fig-heigh: 3
+(
+  ggplot(
+    data = df_base_sv_by_country_sp,
+    mapping = aes(
+      y = fct_reorder(country, p_baseline_sv, .fun = ~ -median(.)),
+      x = p_baseline_sv
+    )
+  )
+  + ggridges::geom_density_ridges(
+      aes(height = after_stat(scaled)),
+      stat = "density",
+      orientation = "x",
+      scale = 0.6,
+      rel_min_height = 0.01,
+      alpha = 0.7,
+      color = NA,
+      fill = "#FDD0A2FF"
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_sp_stats,
+      aes(y = country, yend = country, x = lower2_p, xend = upper2_p),
+      linewidth = 1,
+      alpha = 0.4,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_segment(
+      data = df_base_sv_by_country_sp_stats,
+      aes(y = country, yend = country, x = lower1_p, xend = upper1_p),
+      linewidth = 1.5,
+      alpha = 0.7,
+      color = "#A63603FF",
+      inherit.aes = FALSE
+  )
+  + geom_point(
+      data = df_base_sv_by_country_sp_stats,
+      aes(y = country, x = median_p_baseline_sv),
+      color = "#A63603FF",
+      size = 3,
+      inherit.aes = FALSE
+  )
+  + geom_vline(xintercept = 0, linetype = "dashed", color = "gray50")
+  + theme(
+      panel.background = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+      plot.background = element_blank(),
+      plot.title = element_text(size = 16, hjust = 0.5),
+      plot.subtitle = element_text(size = 14, hjust = 0.5),
+      axis.title.y = element_blank(),
+      axis.title.x = element_text(size = 16),
+      axis.text.y = element_text(size = 15),
+      axis.text.x = element_text(size = 15),
+      legend.background = element_blank(),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 13),
+  )
+  + labs(
+      x = "Baseline Sexual Violence (%)"
+  )
+  + scale_y_discrete(
+      expand = expansion(mult = c(0.1, 0.25))
+  )
+  + scale_x_continuous(
+      labels = scales::percent_format(accuracy = 1)
+  )
+) 
+```
+
+#### Heat Marginal Effects
+
+##### Population level
+
+```{r}
+#| fig-width: 5
+#| fig-height: 3
+(
+  plot_continuous_marginal(fit_sp, df_model, covs = c("heat"))
+  + scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_sp.png")
+# )
+```
+
+#### Heat Variable Posterior
+
+```{r}
+df_heat_pop_sp <- (
+  fit_sp
+  %>% as.data.frame()
+  %>% mutate(heat_pop = exp(b_heat))
+  %>% summarise(
+    median_val = median(heat_pop),
+    lower1_val = bayestestR::hdi(heat_pop, ci = 0.5)$CI_low,
+    upper1_val = bayestestR::hdi(heat_pop, ci = 0.5)$CI_high,
+    lower2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_low,
+    upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
+  )
+  %>% mutate(
+    country = "Overall"
+  )
+)
+```
+
+```{r}
+#| fig-width: 5
+#| fig-height: 1.2
+
+lims <- c(
+  min(df_heat_pop_sp$lower2_val, 0.95), 
+  max(df_heat_pop_sp$upper2_val)
+)
+
+p1 <- (
+  df_heat_pop_sp
+  %>% ggplot(
+    mapping = aes(
+      y = country
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[6],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      y = country,
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[5],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+      y = country,
+    ),
+    size = 4,
+    color = col_palette[5]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 14, hjust = 0.5),,
+    axis.title.y = element_blank(),
+    axis.title.x = element_text(size = 16),
+    axis.text = element_text(size = 15),
+  )
+  + labs(
+    y = "Country",
+    x = "Temperature Risk Odds Ratio"
+  )
+)
+
+p1
+
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("heat_post_", heat_label, "_", viol_label, "_sp.png")
+# )
+```
+
+### Calibration Checks
+
+```{r}
+#| fig-width: 3.5
+#| fig-height: 3
+(
+  plot_calibration(fit_sp, df_model, outcome_var = viol_var)
+  + scale_x_continuous(
+    breaks = c(0.0, 0.1, 0.2)
+  )
+  + scale_y_continuous(
+    limits = c(0, 0.6666667)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_sp.svg")
+# )
+```
+
+### Posterior Predictive Checks
+
+```{r}
+#| fig-width: 9
+#| fig-height: 2
+(
+  plot_ppc_rootogram_weighted(fit_sp, df_model, outcome_var = viol_var)
+  + theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.92, 0.8)
+  )
+)
+# ggsave(
+#   path = fig_dir,
+#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_sp.svg")
+# )
+```

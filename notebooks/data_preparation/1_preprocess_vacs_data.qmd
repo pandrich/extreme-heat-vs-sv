@@ -1,0 +1,1134 @@
+---
+title: "VACS data cleaning"
+format: html
+editor: visual
+---
+
+# Environment Setup
+
+```{r setup}
+# Packages
+library(tidyverse)
+library(sf)
+
+# Path Structure
+root <- rprojroot::has_file("extreme-heat-vs-sv.Rproj")$make_fix_file()
+vacs_data_dir <- root("data/raw/vacs")
+geo_data_dir <- root("data/raw/geographies")
+proc_data_dir <- root("data/processed")
+dir.create(proc_data_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# Import Data
+
+## Geographies
+
+### Mozambique
+
+```{r}
+adm_moz <- (
+  st_read(
+    file.path(geo_data_dir, "Mozambique 2022 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% as.data.frame()
+  %>% select(-geometry)
+)
+```
+
+### Zimbabwe
+
+```{r}
+adm_zwe <- (
+  st_read(
+    file.path(geo_data_dir, "Zimbabwe 2015 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% as.data.frame()
+  %>% select(-geometry)
+)
+```
+
+### Lesotho
+
+```{r}
+adm_lso <- (
+  st_read(
+    file.path(geo_data_dir, "Lesotho 2023 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% as.data.frame()
+  %>% select(-geometry)
+)
+```
+
+### Namibia
+
+```{r}
+adm_nam <- (
+  st_read(
+    file.path(geo_data_dir, "Namibia 2013 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% as.data.frame()
+  %>% select(-geometry)
+)
+```
+
+### Zambia
+
+```{r}
+adm_zmb <- (
+  st_read(
+    file.path(geo_data_dir, "Zambia 2018 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% as.data.frame()
+  %>% select(-geometry)
+)
+```
+
+### Create combined shapes
+
+```{r}
+df_adm <- (
+  bind_rows(
+    adm_moz,
+    adm_zwe,
+    adm_lso,
+    adm_nam,
+    adm_zmb
+  )
+)
+```
+
+## VACS
+
+### Mozambique
+
+```{r}
+vacs_moz <- (
+  haven::read_dta(
+    file.path(
+      vacs_data_dir,
+      "mozambique_pud_rurban.dta"
+    )
+  )
+  %>% rename_with(tolower)
+  %>% mutate(
+    date = as.Date(hdate_f, format = "%Y-%m-%d"),
+    country = "Mozambique",
+    rural = if_else(type_name == "Rural", 1, 0),
+    female = if_else(sex == 2, 1, 0),
+    adm1_code = as.integer(prov),
+    adm1_name = recode_values(
+      adm1_code,
+      1 ~ "Niassa",
+      2 ~ "Cabo Delgado",
+      3 ~ "Nampula",
+      4 ~ "Zambezia",
+      5 ~ "Tete",
+      6 ~ "Manica",
+      7 ~ "Sofala",
+      8 ~ "Inhambane",
+      9 ~ "Gaza",
+      10 ~ "Maputo",
+      11 ~ "Maputo City"
+    ),
+    adm2_code = NA,
+    adm2_name = NA,
+    school_level = case_when(
+      is.na(schhl) ~ 1,
+      schhl == 1 ~ 2,
+      schhl %in% c(2, 3) ~ 3,
+      schhl %in% seq(4, 8) ~ 4,
+      schhl %in% c(9, 10) ~ 5,
+      schhl %in% c(98, 99) ~ NA,
+      .default = NA
+    ),
+    live_with_partner = case_when(
+      marliv == 1 ~ 1,
+      marliv %in% c(2, NA) ~ 0,
+      .default = NA
+    ),
+    sv_1 = case_when(
+      svtch == 2 ~ 0,
+      svtch == 1 & (sv112m == 2 | sv1ft12 == 2) ~ 0,
+      svtch == 1 & (sv112m == 1 | sv1ft12 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (sv1who > 88 & sv1ftr > 88) ~ NA,
+      (sv_1 == 1 & (is.na(sv1who) & is.na(sv1ftr))) ~ NA,
+      (sv_1 == 1 & (sv1who %in% c(5:20, 25:88) | sv1ftr %in% c(5:20, 25:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (sv1who > 88 & sv1ftr > 88) ~ NA,
+      (sv_1 == 1 & (is.na(sv1who) & is.na(sv1ftr))) ~ NA,
+      (sv_1 == 1 & (sv1who %in% c(1:4, 21:24) | sv1ftr %in% c(1:4, 21:24))) ~ 1,
+      .default = 0
+    ),
+    svaffsx = replace_na(svaffsx, 2),
+    sv_2 = case_when(
+      (svaffsx == 2 & svafsany == 2) ~ 0,
+      (svaffsx == 1 | svafsany == 1) & (sv212m == 2 | sv2ft12 == 2) ~ 0,
+      (svaffsx == 1 | svafsany == 1) & (sv212m == 1 | sv2ft12 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (sv2who > 88 & sv2ftr > 88) ~ NA,
+      (sv_2 == 1 & (is.na(sv2who) & is.na(sv2ftr))) ~ NA,
+      (sv_2 == 1 & (sv2who %in% c(5:20, 25:88) | sv2ftr %in% c(5:20, 25:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (sv2who > 88 & sv2ftr > 88) ~ NA,
+      (sv_2 == 1 & (is.na(sv2who) & is.na(sv2ftr))) ~ NA,
+      (sv_2 == 1 & (sv2who %in% c(1:4, 21:24) | sv2ftr %in% c(1:4, 21:24))) ~ 1,
+      .default = 0
+    ),
+    svpfssx = replace_na(svpfssx, 2),
+    sv_3 = case_when(
+      (svpfssx == 2 & svpfsany == 2) ~ 0,
+      (svpfssx == 1 | svpfsany == 1) & (sv312m == 2 | sv3ft12 == 2) ~ 0,
+      (svpfssx == 1 | svpfsany == 1) & (sv312m == 1 | sv3ft12 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (sv3who > 88 & sv3ftr > 88) ~ NA,
+      (sv_3 == 1 & (is.na(sv3who) & is.na(sv3ftr))) ~ NA,
+      (sv_3 == 1 & (sv3who %in% c(5:20, 25:88) | sv3ftr %in% c(5:20, 25:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (sv3who > 88 & sv3ftr > 88) ~ NA,
+      (sv_3 == 1 & (is.na(sv3who) & is.na(sv3ftr))) ~ NA,
+      (sv_3 == 1 & (sv3who %in% c(1:4, 21:24) | sv3ftr %in% c(1:4, 21:24))) ~ 1,
+      .default = 0
+    ),
+    svprssx = replace_na(svprssx, 2),
+    sv_4 = case_when(
+      (svprssx == 2 & svprsany == 2) ~ 0,
+      (svprssx == 1 | svprsany == 1) & (sv412m == 2 | sv4ft12 == 2) ~ 0,
+      (svprssx == 1 | svprsany == 1) & (sv412m == 1 | sv4ft12 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (sv4who > 88 & sv4ftr > 88) ~ NA,
+      (sv_4 == 1 & (is.na(sv4who) & is.na(sv4ftr))) ~ NA,
+      (sv_4 == 1 & (sv4who %in% c(5:20, 25:88) | sv4ftr %in% c(5:20, 25:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (sv4who > 88 & sv4ftr > 88) ~ NA,
+      (sv_4 == 1 & (is.na(sv4who) & is.na(sv4ftr))) ~ NA,
+      (sv_4 == 1 & (sv4who %in% c(1:4, 21:24) | sv4ftr %in% c(1:4, 21:24))) ~ 1,
+      .default = 0
+    ),
+    sv_5 = case_when(
+      (svaffsx == 2 & svafsxany == 2) ~ 0,
+      (svaffsx == 1 | svafsxany == 1) & (sv512m == 2 | sv5ft12 == 2) ~ 0,
+      (svaffsx == 1 | svafsxany == 1) & (sv512m == 1 | sv5ft12 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_5 = case_when(
+      is.na(sv_5) ~ NA,
+      (sv5who > 88 & sv5ftr > 88) ~ NA,
+      (sv_5 == 1 & (is.na(sv5who) & is.na(sv5ftr))) ~ NA,
+      (sv_5 == 1 & (sv5who %in% c(5:20, 25:88) | sv5ftr %in% c(5:20, 25:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_5 = case_when(
+      is.na(sv_5) ~ NA,
+      (sv5who > 88 & sv5ftr > 88) ~ NA,
+      (sv_5 == 1 & (is.na(sv5who) & is.na(sv5ftr))) ~ NA,
+      (sv_5 == 1 & (sv5who %in% c(1:4, 21:24) | sv5ftr %in% c(1:4, 21:24))) ~ 1,
+      .default = 0
+    ),
+    sv = case_when(
+      rowSums(across(c(sv_1, sv_2, sv_3, sv_4, sv_5)), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(c(sv_1, sv_2, sv_3, sv_4, sv_5)), na.rm = TRUE) == 0)
+        & (if_any(c(sv_1, sv_2, sv_3, sv_4, sv_5), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_np = case_when(
+      rowSums(across(starts_with("sv_np")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_np")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_np"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_ip = case_when(
+      rowSums(across(starts_with("sv_ip")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_ip")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_ip"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    )
+  )
+  %>% select(
+    country,
+    adm1_code,
+    adm1_name,
+    adm2_code,
+    adm2_name,
+    cluster,
+    date,
+    sample_weight = sampleweight,
+    rural,
+    female,
+    age,
+    school_level,
+    work,
+    live_with_partner,
+    sv,
+    sv_np,
+    sv_ip
+  )
+)
+```
+
+### Zimbabwe
+
+```{r}
+vacs_zwe <- (
+  haven::read_dta(
+    file.path(
+      vacs_data_dir,
+      "zimbabwe_pud_rurban.dta"
+    )
+  )
+  %>% rename_with(tolower)
+  %>% mutate(
+    date = as.Date(as.character(hdate_vf), format = "%Y%m%d"),
+    country = "Zimbabwe",
+    rural = if_else(areatype == 0, 1, 0),
+    female = if_else(sex == "2", 1, 0),
+    adm1_code = if_else(
+      as.integer(prov) == 0,
+      10,
+      as.integer(prov)
+    ),
+    adm2_name = str_to_title(district),
+    adm2_code = NA,
+    school_level = case_when(
+      is.na(q5) ~ 1,
+      q5 %in% c(98, 99) ~ NA,
+      .default = q5 + 1
+    ),
+    live_with_partner = case_when(
+      (q34 == 1) | (q41 == 1) ~ 1,
+      (q34 %in% c(2, NA)) & (q41 %in% c(2, NA)) ~ 0,
+      .default = NA
+    ),
+    sv_1 = case_when(
+      q600 == 2 ~ 0,
+      q600 == 1 & (q602 == 2 | q612 == 2) ~ 0,
+      q600 == 1 & (q602 == 1 | q612 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q607 > 88 & q617 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q607) & is.na(q617))) ~ NA,
+      (sv_1 == 1 & (q607 %in% c(5:16, 21:88) | q617 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q607 > 88 & q617 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q607) & is.na(q617))) ~ NA,
+      (sv_1 == 1 & (q607 %in% c(1:4, 17:20) | q617 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    sv_2 = case_when(
+      q700 == 2 ~ 0,
+      q700 == 1 & (q702 == 2 | q712 == 2) ~ 0,
+      q700 == 1 & (q702 == 1 | q712 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q707 > 88 & q717 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
+      (sv_2 == 1 & (q707 %in% c(5:88) | q717 %in% c(5:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q707 > 88 & q717 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
+      (sv_2 == 1 & (q707 %in% c(1:4) | q717 %in% c(1:4))) ~ 1,
+      .default = 0
+    ),
+    sv_3 = case_when(
+      q800 == 2 ~ 0,
+      q800 == 1 & (q802 == 2 | q815 == 2) ~ 0,
+      q800 == 1 & (q802 == 1 | q815 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q807 > 88 & q820 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q807) & is.na(q820))) ~ NA,
+      (sv_3 == 1 & (q807 %in% c(5:88) | q820 %in% c(5:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q807 > 88 & q820 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q807) & is.na(q820))) ~ NA,
+      (sv_3 == 1 & (q807 %in% c(1:4) | q820 %in% c(1:4))) ~ 1,
+      .default = 0
+    ),
+    sv_4 = case_when(
+      q900 == 2 ~ 0,
+      q900 == 1 & (q902 == 2 | q914 == 2) ~ 0,
+      q900 == 1 & (q902 == 1 | q914 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q907 > 88 & q919 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q907) & is.na(q919))) ~ NA,
+      (sv_4 == 1 & (q907 %in% c(5:88) | q919 %in% c(5:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q907 > 88 & q919 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q907) & is.na(q919))) ~ NA,
+      (sv_4 == 1 & (q907 %in% c(1:4) | q919 %in% c(1:4))) ~ 1,
+      .default = 0
+    ),
+    sv = case_when(
+      rowSums(across(c(sv_1, sv_2, sv_3, sv_4)), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(c(sv_1, sv_2, sv_3, sv_4)), na.rm = TRUE) == 0)
+        & (if_any(c(sv_1, sv_2, sv_3, sv_4), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_np = case_when(
+      rowSums(across(starts_with("sv_np")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_np")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_np"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_ip = case_when(
+      rowSums(across(starts_with("sv_ip")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_ip")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_ip"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    )
+  )
+  %>% select(
+    country,
+    adm1_code,
+    adm1_name = province, 
+    adm2_code,
+    adm2_name,
+    cluster = psu,
+    date,
+    sample_weight = finalwt,
+    rural,
+    female,
+    age = q2,
+    school_level,
+    live_with_partner,
+    sv,
+    sv_np,
+    sv_ip
+  )
+)
+```
+
+### Lesotho
+
+```{r}
+vacs_lso <- (
+  haven::read_dta(
+    file.path(
+      vacs_data_dir,
+      "lesotho_pud_rurban.dta"
+    )
+  )
+  %>% rename_with(tolower)
+  %>% mutate(
+    date = as.Date(as.character(hdate_vf), format = "%Y%m%d"),
+    country = "Lesotho",
+    adm1_code = recode(
+      district,
+      "Botha-Botha" = 1,
+      "Leribe" = 2,
+      "Berea" = 3,
+      "Maseru" = 4,
+      "Mafeteng" = 5,
+      "Mohale's Hoek" = 6,
+      "Quthing" = 7,
+      "Qacha's Nek" = 8,
+      "Mokhotlong"= 9,
+      "Thaba-Tseka" = 10
+    ),
+    adm2_name = NA,
+    adm2_code = NA,
+    rural = if_else(
+      sett %in% c(2,3),
+      1,
+      0
+    ),
+    female = if_else(sex == 2, 1, 0),
+    school_level = case_when(
+      is.na(q6) ~ 1,
+      q6 == 1 ~ 2,
+      q6 == 2 ~ 3,
+      q6 %in% c(3,4) ~ 4,
+      q6 %in% c(98, 99) ~ NA,
+      .default = q6
+    ),
+    live_with_partner = case_when(
+      q40 == 1 ~ 1,
+      q40 %in% c(2, NA) ~ 0,
+      .default = NA
+    ),
+    sv_1 = case_when(
+      q600 == 2 ~ 0,
+      q600 == 1 & (q602 == 2 | q609 == 2) ~ 0,
+      q600 == 1 & (q602 == 1 | q609 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q605 > 88 & q612 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
+      (sv_1 == 1 & (q605 %in% c(5:16, 21:88) | q612 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q605 > 88 & q612 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
+      (sv_1 == 1 & (q605 %in% c(1:4, 17:20) | q612 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    q700a = replace_na(q700a, 2),
+    sv_2 = case_when(
+      (q700a == 2 & q700b == 2) ~ 0,
+      (q700a == 1 | q700b == 1) & (q702 == 2 | q709 == 2) ~ 0,
+      (q700a == 1 | q700b == 1) & (q702 == 1 | q709 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q705 > 88 & q712 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
+      (sv_2 == 1 & (q705 %in% c(5:16, 21:88) | q712 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q705 > 88 & q712 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
+      (sv_2 == 1 & (q705 %in% c(1:4, 17:20) | q712 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    q800a = replace_na(q800a, 2),
+    sv_3 = case_when(
+      (q800a == 2 & q800b == 2) ~ 0,
+      (q800a == 1 | q800b == 1) & (q802 == 2 | q810 == 2) ~ 0,
+      (q800a == 1 | q800b == 1) & (q802 == 1 | q810 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q805 > 88 & q813 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
+      (sv_3 == 1 & (q805 %in% c(5:16, 21:88) | q813 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q805 > 88 & q813 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
+      (sv_3 == 1 & (q805 %in% c(1:4, 17:20) | q813 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    q900a = replace_na(q900a, 2),
+    sv_4 = case_when(
+      (q900a == 2 & q900b == 2) ~ 0,
+      (q900a == 1 | q900b == 1) & (q902 == 2 | q909 == 2) ~ 0,
+      (q900a == 1 | q900b == 1) & (q902 == 1 | q909 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q905 > 88 & q912 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
+      (sv_4 == 1 & (q905 %in% c(5:16, 21:88) | q912 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q905 > 88 & q912 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
+      (sv_4 == 1 & (q905 %in% c(1:4, 17:20) | q912 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    q1000a = replace_na(q1000a, 2),
+    sv_5 = case_when(
+      (q1000a == 2 & q1000b == 2) ~ 0,
+      (q1000a == 1 | q1000b == 1) & (q1002 == 2 | q1009 == 2) ~ 0,
+      (q1000a == 1 | q1000b == 1) & (q1002 == 1 | q1009 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_5 = case_when(
+      is.na(sv_5) ~ NA,
+      (q1005 > 88 & q1012 > 88) ~ NA,
+      (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
+      (sv_5 == 1 & (q1005 %in% c(5:16, 21:88) | q1012 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_5 = case_when(
+      is.na(sv_5) ~ NA,
+      (q1005 > 88 & q1012 > 88) ~ NA,
+      (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
+      (sv_5 == 1 & (q1005 %in% c(1:4, 17:20) | q1012 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    sv = case_when(
+      rowSums(across(c(sv_1, sv_2, sv_3, sv_4, sv_5)), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(c(sv_1, sv_2, sv_3, sv_4, sv_5)), na.rm = TRUE) == 0)
+        & (if_any(c(sv_1, sv_2, sv_3, sv_4, sv_5), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_np = case_when(
+      rowSums(across(starts_with("sv_np")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_np")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_np"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_ip = case_when(
+      rowSums(across(starts_with("sv_ip")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_ip")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_ip"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    )
+  )
+  %>% select(
+    country,
+    adm1_code,
+    adm1_name = district,
+    adm2_code,
+    adm2_name,
+    cluster = psu,
+    date,
+    sample_weight = individual_weight1,
+    rural,
+    female,
+    age = q2,
+    school_level,
+    live_with_partner,
+    sv,
+    sv_np,
+    sv_ip
+  )
+)
+```
+
+### Namibia
+
+```{r}
+vacs_nam <- (
+  haven::read_dta(
+    file.path(
+      vacs_data_dir,
+      "namibia_pud_rurban.dta"
+    )
+  )
+  %>% rename_with(tolower)
+  %>% mutate(
+    date = as.Date(str_split_i(hdate_f, "T", 1), format = "%Y-%m-%d"),
+    country = "Namibia",
+    adm1_name = str_split_i(strata, " - ", 1),
+    adm1_name = replace_values(
+      adm1_name,
+      "Kavango East" ~ "Kavango",
+      "Kavango West" ~ "Kavango",
+      "Omaheke_Otjo" ~ "Omaheke",
+      "Kunene_Omusa" ~ "Kunene"
+    ),
+    adm1_code = case_when(
+      adm1_name == "Zambezi" ~ 1,
+      adm1_name == "!Karas" ~ 4,
+      adm1_name == "Kavango" ~ 5,
+      .default = reg
+    ),
+    adm2_name = NA,
+    adm2_code = NA,
+    rural = if_else(
+      str_split_i(strata, " - ", 2) == "Rural",
+      1,
+      0
+    ),
+    female = if_else(sex == 2, 1, 0),
+    q40 = as.integer(q40),
+    school_level = case_when(
+      is.na(q6) ~ 1,
+      q6 == 1 ~ 2,
+      q6 == 2 ~ 3,
+      q6 %in% c(3, 4) ~ 4,
+      q6 %in% c(98, 99) ~ NA,
+      .default = q6
+    ),
+    live_with_partner = case_when(
+      q40 == 1 ~ 1,
+      q40 %in% c(2, NA) ~ 0,
+      .default = NA
+    ),
+    sv_1 = case_when(
+      q600 == 2 ~ 0,
+      q600 == 1 & (q602 == 2 | q609 == 2) ~ 0,
+      q600 == 1 & (q602 == 1 | q609 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q605 > 88 & q612 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
+      (sv_1 == 1 & (q605 %in% c(5:18, 22:88) | q612 %in% c(5:18, 22:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q605 > 88 & q612 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
+      (sv_1 == 1 & (q605 %in% c(1:4, 19:21) | q612 %in% c(1:4, 19:21))) ~ 1,
+      .default = 0
+    ),
+    q700a = replace_na(q700a, 2),
+    sv_2 = case_when(
+      (q700a == 2 & q700b == 2) ~ 0,
+      (q700a == 1 | q700b == 1) & (q702 == 2 | q709 == 2) ~ 0,
+      (q700a == 1 | q700b == 1) & (q702 == 1 | q709 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q705 > 88 & q712 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
+      (sv_2 == 1 & (q705 %in% c(5:18, 22:88) | q712 %in% c(5:18, 22:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q705 > 88 & q712 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
+      (sv_2 == 1 & (q705 %in% c(1:4, 19:21) | q712 %in% c(1:4, 19:21))) ~ 1,
+      .default = 0
+    ),
+    q800a = replace_na(q800a, 2),
+    sv_3 = case_when(
+      (q800a == 2 & q800b == 2) ~ 0,
+      (q800a == 1 | q800b == 1) & (q802 == 2 | q810 == 2) ~ 0,
+      (q800a == 1 | q800b == 1) & (q802 == 1 | q810 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q805 > 88 & q813 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
+      (sv_3 == 1 & (q805 %in% c(5:18, 22:88) | q813 %in% c(5:18, 22:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q805 > 88 & q813 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
+      (sv_3 == 1 & (q805 %in% c(1:4, 19:21) | q813 %in% c(1:4, 19:21))) ~ 1,
+      .default = 0
+    ),
+    q900a = replace_na(q900a, 2),
+    sv_4 = case_when(
+      (q900a == 2 & q900b == 2) ~ 0,
+      (q900a == 1 | q900b == 1) & (q902 == 2 | q909 == 2) ~ 0,
+      (q900a == 1 | q900b == 1) & (q902 == 1 | q909 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q905 > 88 & q912 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
+      (sv_4 == 1 & (q905 %in% c(5:18, 22:88) | q912 %in% c(5:18, 22:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q905 > 88 & q912 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
+      (sv_4 == 1 & (q905 %in% c(1:4, 19:21) | q912 %in% c(1:4, 19:21))) ~ 1,
+      .default = 0
+    ),
+    q1000a = replace_na(q1000a, 2),
+    sv_5 = case_when(
+      (q1000a == 2 & q1000b == 2) ~ 0,
+      (q1000a == 1 | q1000b == 1) & (q1002 == 2 | q1009 == 2) ~ 0,
+      (q1000a == 1 | q1000b == 1) & (q1002 == 1 | q1009 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_5 = case_when(
+      is.na(sv_5) ~ NA,
+      (q1005 > 88 & q1012 > 88) ~ NA,
+      (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
+      (sv_5 == 1 & (q1005 %in% c(5:18, 22:88) | q1012 %in% c(5:18, 22:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_5 = case_when(
+      is.na(sv_5) ~ NA,
+      (q1005 > 88 & q1012 > 88) ~ NA,
+      (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
+      (sv_5 == 1 & (q1005 %in% c(1:4, 19:21) | q1012 %in% c(1:4, 19:21))) ~ 1,
+      .default = 0
+    ),
+    sv = case_when(
+      rowSums(across(c(sv_1, sv_2, sv_3, sv_4, sv_5)), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(c(sv_1, sv_2, sv_3, sv_4, sv_5)), na.rm = TRUE) == 0)
+        & (if_any(c(sv_1, sv_2, sv_3, sv_4, sv_5), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_np = case_when(
+      rowSums(across(starts_with("sv_np")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_np")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_np"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_ip = case_when(
+      rowSums(across(starts_with("sv_ip")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_ip")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_ip"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    )
+  )
+  %>% select(
+    country,
+    adm1_code,
+    adm1_name,
+    adm2_code,
+    adm2_name,
+    cluster = ea,
+    date,
+    sample_weight = sampleweight,
+    rural,
+    female,
+    age = q2,
+    school_level,
+    live_with_partner,
+    sv,
+    sv_np,
+    sv_ip
+  )
+)
+```
+
+### Zambia
+
+#### Female
+
+```{r}
+vacs_zmbf <- (
+  haven::read_dta(
+    file.path(
+      vacs_data_dir,
+      "zambiaf_pud_rurban.dta"
+    )
+  )
+  %>% rename_with(tolower)
+  %>% mutate(
+    female = 1
+  )
+)
+```
+
+#### Male
+
+```{r}
+vacs_zmbm <- (
+  haven::read_dta(
+    file.path(
+      vacs_data_dir,
+      "zambiam_pud_rurban.dta"
+    )
+  )
+  %>% rename_with(tolower)
+  %>% mutate(
+    female = 0
+  )
+)
+```
+
+```{r}
+vacs_zmb <- (
+  bind_rows(vacs_zmbf, vacs_zmbm)
+  %>% mutate(
+    date = lubridate::make_date(year = hyr_vf, month = hmth_vf, day = hday_vf),
+    country = "Zambia",
+    adm1_name = recode_values(
+      prov,
+      1 ~ "Central",
+      2 ~ "Copperbelt",
+      3 ~ "Eastern",
+      4 ~ "Luapula",
+      5 ~ "Lusaka",
+      6 ~ "Muchinga",
+      7 ~ "Northern",
+      8 ~ "North Western",
+      9 ~ "Southern",
+      10 ~ "Western"
+    ),
+    adm2_name = NA,
+    adm2_code = as.numeric(paste0(substr(dist, 1, 1), "0", substr(dist, 2, nchar(dist)))), 
+    rural = if_else(
+      region == 1,
+      1,
+      0
+    ),
+    school_level = case_when(
+      is.na(q5) ~ 1,
+      q5 %in% c(98, 99) ~ NA,
+      .default = q5 + 1
+    ),
+    live_with_partner = case_when(
+      (q28 == 1) | (q31 == 1) ~ 1,
+      (q28 %in% c(2, NA)) & (q31 %in% c(2, NA)) ~ 0,
+      .default = NA
+    ),
+    sv_1 = case_when(
+      q700 == 2 ~ 0,
+      q700 == 1 & (q702 == 2 | q712 == 2) ~ 0,
+      q700 == 1 & (q702 == 1 | q712 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q707 > 88 & q717 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
+      (sv_1 == 1 & (q707 %in% c(5:16, 21:88) | q717 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_1 = case_when(
+      is.na(sv_1) ~ NA,
+      (q707 > 88 & q717 > 88) ~ NA,
+      (sv_1 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
+      (sv_1 == 1 & (q707 %in% c(1:4, 17:20) | q717 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    sv_2 = case_when(
+      q800 == 2 ~ 0,
+      q800 == 1 & (q802 == 2 | q812 == 2) ~ 0,
+      q800 == 1 & (q802 == 1 | q812 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q807 > 88 & q817 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q807) & is.na(q817))) ~ NA,
+      (sv_2 == 1 & (q807 %in% c(5:16, 21:88) | q817 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_2 = case_when(
+      is.na(sv_2) ~ NA,
+      (q807 > 88 & q817 > 88) ~ NA,
+      (sv_2 == 1 & (is.na(q807) & is.na(q817))) ~ NA,
+      (sv_2 == 1 & (q807 %in% c(1:4, 17:20) | q817 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    sv_3 = case_when(
+      q900 == 2 ~ 0,
+      q900 == 1 & (q902 == 2 | q915 == 2) ~ 0,
+      q900 == 1 & (q902 == 1 | q915 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q907 > 88 & q920 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q907) & is.na(q920))) ~ NA,
+      (sv_3 == 1 & (q907 %in% c(5:16, 21:88) | q920 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_3 = case_when(
+      is.na(sv_3) ~ NA,
+      (q907 > 88 & q920 > 88) ~ NA,
+      (sv_3 == 1 & (is.na(q907) & is.na(q920))) ~ NA,
+      (sv_3 == 1 & (q907 %in% c(1:4, 17:20) | q920 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    sv_4 = case_when(
+      q1000 == 2 ~ 0,
+      q1000 == 1 & (q1002 == 2 | q1014 == 2) ~ 0,
+      q1000 == 1 & (q1002 == 1 | q1014 == 1) ~ 1,
+      .default = NA
+    ),
+    sv_np_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q1007 > 88 & q1019 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q1007) & is.na(q1019))) ~ NA,
+      (sv_4 == 1 & (q1007 %in% c(5:16, 21:88) | q1019 %in% c(5:16, 21:88))) ~ 1,
+      .default = 0
+    ),
+    sv_ip_4 = case_when(
+      is.na(sv_4) ~ NA,
+      (q1007 > 88 & q1019 > 88) ~ NA,
+      (sv_4 == 1 & (is.na(q1007) & is.na(q1019))) ~ NA,
+      (sv_4 == 1 & (q1007 %in% c(1:4, 17:20) | q1019 %in% c(1:4, 17:20))) ~ 1,
+      .default = 0
+    ),
+    sv = case_when(
+      rowSums(across(c(sv_1, sv_2, sv_3, sv_4)), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(c(sv_1, sv_2, sv_3, sv_4)), na.rm = TRUE) == 0)
+        & (if_any(c(sv_1, sv_2, sv_3, sv_4), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_np = case_when(
+      rowSums(across(starts_with("sv_np")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_np")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_np"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    ),
+    sv_ip = case_when(
+      rowSums(across(starts_with("sv_ip")), na.rm = TRUE) > 0 ~ 1,
+      (
+        (rowSums(across(starts_with("sv_ip")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_ip"), ~ is.na(.)))
+      ) ~ NA,
+      .default = 0
+    )
+  )
+  %>% select(
+    country,
+    adm1_code = prov,
+    adm1_name,
+    adm2_code,
+    adm2_name,
+    cluster = psu,
+    date,
+    sample_weight = finalwgt,
+    rural,
+    female,
+    age = q2,
+    school_level,
+    live_with_partner,
+    sv,
+    sv_np,
+    sv_ip
+  )
+)
+```
+
+# Combine
+
+```{r}
+df_vacs <- (
+  bind_rows(vacs_moz, vacs_zwe, vacs_lso, vacs_nam, vacs_zmb)
+  # %>% mutate(
+  #   tot_weights = sum(sample_weight, na.rm = TRUE)
+  # )
+  # %>% group_by(country)
+  # %>% mutate(
+  #   country_weights = sum(sample_weight, na.rm = TRUE)
+  # )
+  # %>% ungroup()
+  # %>% mutate(
+  #   sample_weight = 1E-3 * sample_weight * (tot_weights / length(unique(country))) * (1 / country_weights)
+  # )
+  %>% select(
+    -c(
+      # tot_weights,
+      # country_weights,
+      adm1_name, 
+      adm2_code, 
+      adm2_name
+    )
+  )
+  %>% rename(
+    adm_code = adm1_code
+  )
+  %>% filter(
+    !is.na(date) & !is.na(sample_weight)
+  )
+  %>% merge(
+    df_adm,
+    by = c(
+      "country",
+      "adm_code"
+    ),
+    all.x = TRUE
+  )
+)
+```
+
+# Save
+
+```{r}
+df_vacs %>% write_csv(file.path(proc_data_dir, "vacs_clean.csv"))
+```
+
+```{r}
+sessionInfo()
+```
