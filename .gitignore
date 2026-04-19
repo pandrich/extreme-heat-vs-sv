@@ -1,0 +1,24 @@
+# Ignore ref files
+.DS_Store
+.Rproj.user
+.Rhistory
+.Rprofile
+.RData
+.RDataTmp
+.Ruserdata
+
+# Ignore ref folders
+__pycache__/
+cache/
+.ipynb_checkpoints/
+.streamlit/
+
+# Ignore data folders
+data/
+temp/
+
+# Ignore output folders
+videos/
+figures/
+models/
+models_output/

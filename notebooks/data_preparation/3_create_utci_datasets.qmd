@@ -1,0 +1,157 @@
+---
+title: "Create UTCI Dataset"
+format: html
+editor: visual
+---
+
+# Environment Setup
+
+```{r setup}
+# Packages
+library(tidyverse)
+library(tidyterra)
+library(sf)
+
+# Path Structure
+root <- rprojroot::has_file("extreme-heat-vs-sv.Rproj")$make_fix_file()
+raw_data_dir <- root("data/raw")
+utci_data_dir <- root("data/raw/utci")
+geo_data_dir <- root("data/raw/geographies")
+proc_data_dir <- root("data/processed")
+dir.create(proc_data_dir, showWarnings = FALSE, recursive = TRUE)
+src_dir <- root("src")
+
+# Parameters
+country_map <- c(
+  "MOZ" = "Mozambique",
+  "ZWE" = "Zimbabwe",
+  "LSO" = "Lesotho",
+  "NAM" = "Namibia",
+  "ZMB" = "Zambia"
+)
+```
+
+# Functions
+
+```{r}
+source(file.path(src_dir, "data_processing.R"))
+```
+
+# Data Import
+
+## Geographies
+
+### Mozambique
+
+```{r}
+sf_moz <- (
+  st_read(
+    file.path(geo_data_dir, "Mozambique 2022 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Zimbabwe
+
+```{r}
+sf_zwe <- (
+  st_read(
+    file.path(geo_data_dir, "Zimbabwe 2015 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Lesotho
+
+```{r}
+sf_lso <- (
+  st_read(
+    file.path(geo_data_dir, "Lesotho 2023 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Namibia
+
+```{r}
+sf_nam <- (
+  st_read(
+    file.path(geo_data_dir, "Namibia 2013 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Zambia
+
+```{r}
+sf_zmb <- (
+  st_read(
+    file.path(geo_data_dir, "Zambia 2018 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
+  )
+  %>% rename_with(tolower)
+  %>% select(
+    country = cntrynamee,
+    adm_name = dhsregen,
+    adm_code = regcode
+  )
+  %>% arrange(adm_code)
+)
+```
+
+### Create combined shapes
+
+```{r}
+sf_all <- (
+  bind_rows(
+    sf_moz,
+    sf_zwe,
+    sf_lso,
+    sf_nam,
+    sf_zmb
+  )
+)
+```
+
+# Generate UTCI dataset
+
+```{r}
+df_utci <- build_utci_daily(utci_data_dir, country_map, sf_all)
+```
+
+# Save
+
+```{r}
+df_utci %>% write_csv(file.path(proc_data_dir, "utci_max_daily.csv"))
+```
+
+```{r}
+sessionInfo()
+```

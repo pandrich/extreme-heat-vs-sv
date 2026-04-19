@@ -1,0 +1,123 @@
+---
+title: "Combine heat and violence data"
+format: html
+editor: visual
+---
+
+# Environment Setup
+
+```{r setup}
+# Packages
+library(tidyverse)
+library(sf)
+
+# Folder Structure
+root <- rprojroot::has_file("extreme-heat-vs-sv.Rproj")$make_fix_file()
+proc_data_dir <- root("data/processed")
+```
+
+# Import data
+
+## Heat
+
+The dataset contains entries for each day, to match it with the violence data we calculate the max over all the entries in each month. This represents the maximum exposure for respondents in that month. 
+
+```{r}
+df_heat <- (
+  read_csv(
+    file.path(proc_data_dir, "processed_heat_daily_max.csv"),
+    show_col_types = FALSE
+  )
+  %>% group_by(
+    country,
+    adm_code,
+    adm_name,
+    date = lubridate::ceiling_date(date, "month") - lubridate::days(1)
+  )
+  %>% summarise(
+    across(everything(), ~ max(., na.rm = TRUE)),
+    .groups = "drop"
+  )
+)
+```
+
+```{r}
+colSums(is.na(df_heat))
+```
+
+## Violence
+
+```{r}
+df_viol <- (
+  read_csv(
+    file.path(proc_data_dir, "vacs_clean.csv"),
+    show_col_types = FALSE
+  )
+  %>% mutate(
+    date = ceiling_date(as.Date(date, format = "%Y-%m-%d"), "month") - days(1)
+  )
+)
+```
+
+# Combine datasets
+
+```{r}
+df_heat_viol <- (
+  df_viol
+  %>% merge(
+    df_heat,
+    by = c(
+      "country", 
+      "adm_code",
+      "adm_name",
+      "date"
+    ),
+    all.x = TRUE
+  )
+  %>% select(-adm_code)
+)
+```
+
+```{r}
+col_palette <- c("#dc7726", "#eebb93", "#ecc046","#0292b7", "#81c9db", "#35A29F")
+(
+  ggplot(
+    data = df_heat_viol, 
+    aes(
+      x = dev_value_temp_max_12m,
+      fill = country
+    )
+  )
+  + geom_histogram(
+    position = "stack",
+    bins = 20
+  )
+  + theme(
+      panel.background = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+      plot.background = element_blank(),
+      plot.title = element_text(size = 16, hjust = 0.5),
+      plot.subtitle = element_text(size = 14, hjust = 0.5),
+      axis.title = element_text(size = 16),
+      axis.text.y = element_text(size = 15),
+      axis.text.x = element_text(size = 15),
+      legend.background = element_blank(),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 13),
+    )
+  + scale_fill_manual(
+    values = col_palette
+  )
+)
+```
+
+# Save
+
+```{r}
+df_heat_viol %>% write_csv(file.path(proc_data_dir, "heat_violence_final_max_month.csv"))
+```
+
+```{r}
+sessionInfo()
+```
