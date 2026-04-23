@@ -20,23 +20,13 @@ proc_data_dir <- root("data/processed")
 
 ## Heat
 
-The dataset contains entries for each day, to match it with the violence data we calculate the max over all the entries in each month. This represents the maximum exposure for respondents in that month. 
+The dataset contains entries for each day, to match it with the violence data we calculate the max over all the entries in each month. This represents the maximum exposure for respondents in that month.
 
 ```{r}
 df_heat <- (
   read_csv(
-    file.path(proc_data_dir, "processed_heat_daily_max.csv"),
+    file.path(proc_data_dir, "processed_heat_daily.csv"),
     show_col_types = FALSE
-  )
-  %>% group_by(
-    country,
-    adm_code,
-    adm_name,
-    date = lubridate::ceiling_date(date, "month") - lubridate::days(1)
-  )
-  %>% summarise(
-    across(everything(), ~ max(., na.rm = TRUE)),
-    .groups = "drop"
   )
 )
 ```
@@ -52,9 +42,6 @@ df_viol <- (
   read_csv(
     file.path(proc_data_dir, "vacs_clean.csv"),
     show_col_types = FALSE
-  )
-  %>% mutate(
-    date = ceiling_date(as.Date(date, format = "%Y-%m-%d"), "month") - days(1)
   )
 )
 ```
@@ -115,8 +102,9 @@ col_palette <- c("#dc7726", "#eebb93", "#ecc046","#0292b7", "#81c9db", "#35A29F"
 # Save
 
 ```{r}
-df_heat_viol %>% write_csv(file.path(proc_data_dir, "heat_violence_final_max_month.csv"))
+df_heat_viol %>% write_csv(file.path(proc_data_dir, "heat_violence_final.csv"))
 ```
+
 
 ```{r}
 sessionInfo()

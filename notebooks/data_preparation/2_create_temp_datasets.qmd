@@ -151,7 +151,6 @@ rast_temp <- terra::rast(
 )
 ```
 
-
 # Generate dataset
 
 ```{r}
@@ -161,7 +160,7 @@ df_temp <- build_temp_daily(rast_temp, sf_all)
 # Save
 
 ```{r}
-df_temp %>% write_csv(file.path(proc_data_dir, "temp_max_daily_max.csv"))
+df_temp %>% write_csv(file.path(proc_data_dir, "temp_max_daily.csv"))
 ```
 
 ```{r}

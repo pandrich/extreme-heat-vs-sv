@@ -1,5 +1,5 @@
 ---
-title: "Model temperature (rolling max temp) effect on non-partner sexual violence, all female"
+title: "Model temperature (number of excess hot days) effect on relative sexual violence"
 project:
   output-dir: outputs
 date: last-modified
@@ -43,26 +43,25 @@ dir.create(fig_dir, showWarnings = FALSE)
 
 ```{r}
 # Settings
-nb_name <-  "Model rolling temperature effect on non-partner sexual violence, all female"
+nb_name <-  "Model effect of excess number of hot days on relative sexual violence"
 seed <- sum(sapply(str_split(nb_name, pattern = "", simplify = TRUE), FUN = utf8ToInt))
 set.seed(seed)
 
 # Viz settings
 col_palette <- c("#dc7726", "#eebb93", "#ecc046", "#f6e0a3", "#0292b7", "#81c9db", "#35A29F", "#97DECE")
 label_map <- c(
-  live_with_partner = "Live with partner (%)",
   school_level = "Education attainment (%)",
   rural = "Rural area (%)",
   over_18 = "Over 18 (%)",
   heat = "Excess hot days (std.)",
-  sv = "NP-SV victimisation (%)"
+  sv = "R-SV victimisation (%)"
 )
 
 # Var settings
-heat_var <- "dev_value_temp_roll_max_12m"
-heat_label <- "max_temp_roll"
-viol_var <- "sv_np"
-viol_label <- "np_viol"
+heat_var <- "dev_value_temp_above_1sd_12m"
+heat_label <- "excess_hot_days"
+viol_var <- "sv_f"
+viol_label <- "r_viol"
 covars <- c(
   "sample_weight",
   "country",
@@ -71,7 +70,6 @@ covars <- c(
   "rural",
   "over_18",
   "school_level",
-  "live_with_partner",
   viol_var
 )
 vars <- c(covars, heat_var)
@@ -205,7 +203,12 @@ df_heat_viol <- (
     show_col_type = FALSE
   )
   %>% filter(
-    female == 1,
+    (female == 1) 
+    & (
+      (live_with_partner == 1)
+      | (live_with_father == 1)
+      | (live_with_mother == 1)
+    )
   )
   %>% mutate(
     over_18 = as.numeric(age > 18)
@@ -223,7 +226,6 @@ df_heat_viol <- (
   %>% summarise(
     heat = mean(!!sym(heat_var), na.rm = TRUE),
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
@@ -241,7 +243,6 @@ df_heat_viol <- (
   %>% summarise(
     heat = mean(!!sym(heat_var), na.rm = TRUE),
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
@@ -260,7 +261,6 @@ df_heat_viol_adm <- (
   %>% summarise(
     heat = mean(!!sym(heat_var), na.rm = TRUE),
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
@@ -548,7 +548,7 @@ plot(graph, add = TRUE, type = "l", col = "black")
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_ranint_adm_clu <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -567,7 +567,6 @@ form_ranint_adm_clu <- bf(
         1 
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -603,7 +602,6 @@ bayesplot::mcmc_pairs(
     "sd_adm_name__Intercept", 
     "sd_adm_name:cluster__Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level", 
     "b_heat"
@@ -962,7 +960,7 @@ p1
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(7, "num_pred")
+stanvars <- stanvar(6, "num_pred")
 
 prior_list_fix_int_cc <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -981,7 +979,6 @@ form_fix_int_cc <- bf(
         1 
         + (1 | adm_name/cluster)
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + country * heat
@@ -1015,7 +1012,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level", 
     "b_heat",
@@ -1471,7 +1467,7 @@ plot_calibration(fit_fix_int_cc, df_model, outcome_var = viol_var)
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_ranef_cou <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -1491,7 +1487,6 @@ form_ranef_cou <- bf(
         + (1 | adm_name/cluster)
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -1529,7 +1524,6 @@ bayesplot::mcmc_pairs(
     "sd_adm_name:cluster__Intercept",
     "r_country[Lesotho,heat]",
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level", 
     "b_heat"
@@ -2004,7 +1998,7 @@ p2 <- (
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_sp <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -2024,7 +2018,6 @@ form_sp <- bf(
         1
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -2059,7 +2052,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level",
     "b_heat",
@@ -2417,7 +2409,7 @@ p1
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_sp_ranef <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -2438,7 +2430,6 @@ form_sp_ranef <- bf(
         1
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -2474,7 +2465,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level",
     "b_heat",
@@ -2959,7 +2949,7 @@ p2 <- (
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_sp_fixed <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -2978,7 +2968,6 @@ form_sp_fixed <- bf(
       "(
         1
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + country * heat
@@ -3013,7 +3002,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level",
     "b_heat",
