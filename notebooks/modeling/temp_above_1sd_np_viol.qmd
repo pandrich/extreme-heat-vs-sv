@@ -1,5 +1,5 @@
 ---
-title: "Model temperature (rolling max temp) effect on non-partner sexual violence, all female"
+title: "Model temperature (number of excess hot days) effect on non-partner sexual violence"
 project:
   output-dir: outputs
 date: last-modified
@@ -43,7 +43,7 @@ dir.create(fig_dir, showWarnings = FALSE)
 
 ```{r}
 # Settings
-nb_name <-  "Model rolling temperature effect on non-partner sexual violence, all female"
+nb_name <-  "Model effect of excess number of hot days on non-partner sexual violence"
 seed <- sum(sapply(str_split(nb_name, pattern = "", simplify = TRUE), FUN = utf8ToInt))
 set.seed(seed)
 
@@ -59,8 +59,8 @@ label_map <- c(
 )
 
 # Var settings
-heat_var <- "dev_value_temp_roll_max_12m"
-heat_label <- "max_temp_roll"
+heat_var <- "dev_value_temp_above_1sd_12m"
+heat_label <- "excess_hot_days"
 viol_var <- "sv_np"
 viol_label <- "np_viol"
 covars <- c(
@@ -485,7 +485,7 @@ sf_vacs <- (
 )
 ```
 
-## Extract model subsets
+## Extract model subset
 
 ```{r}
 df_model <- (

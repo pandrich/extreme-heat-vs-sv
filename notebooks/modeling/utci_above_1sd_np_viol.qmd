@@ -1,7 +1,17 @@
 ---
-title: "Model temperature (number of excess hot days) effect on non-partner sexual violence"
-format: html
+title: "Model UTCI (number of excess hot days) effect on non-partner sexual violence, all female"
+project:
+  output-dir: outputs
+date: last-modified
+format: 
+  html:
+    page-layout: full
+toc: true
 editor: visual
+warning: false
+execute: 
+  freeze: true
+  warning: false
 ---
 
 # Environment Setup
@@ -14,7 +24,6 @@ library(spdep)
 library(brms)
 options(brms.backend = "cmdstanr", mc.cores = 4)
 library(posterior)
-# library(ggdist)
 library(bayesplot)
 library(tidybayes)
 library(tidytext)
@@ -34,7 +43,7 @@ dir.create(fig_dir, showWarnings = FALSE)
 
 ```{r}
 # Settings
-nb_name <-  "Model effect of excess number of hot days on non-partner sexual violence"
+nb_name <-  "Model effect of excess number of high UTCI days on non-partner sexual violence, all female"
 seed <- sum(sapply(str_split(nb_name, pattern = "", simplify = TRUE), FUN = utf8ToInt))
 set.seed(seed)
 
@@ -50,8 +59,8 @@ label_map <- c(
 )
 
 # Var settings
-heat_var <- "dev_value_temp_above_1sd_12m"
-heat_label <- "excess_hot_days"
+heat_var <- "dev_value_utci_above_32_12m"
+heat_label <- "excess_utci_above_32_days"
 viol_var <- "sv_np"
 viol_label <- "np_viol"
 covars <- c(
@@ -68,7 +77,8 @@ covars <- c(
 vars <- c(covars, heat_var)
 
 # Computation settings
-iter = 4000
+warmup = 500
+iter = 2000
 ```
 
 # Functions
@@ -191,7 +201,7 @@ sf_all <- (
 ```{r}
 df_heat_viol <- (
   read_csv(
-    file.path(proc_data_dir, "heat_violence_final_max.csv"),
+    file.path(proc_data_dir, "heat_violence_final.csv"),
     show_col_type = FALSE
   )
   %>% filter(
@@ -199,25 +209,6 @@ df_heat_viol <- (
   )
   %>% mutate(
     over_18 = as.numeric(age > 18)
-  )
-  %>% select(date, all_of(vars))
-  %>% na.omit()
-  %>% group_by(country)
-  %>% mutate(
-    country_sample_weight = sum(sample_weight, na.rm = TRUE)
-  )
-  %>% ungroup()
-  %>% mutate(
-    sample_weight = (
-      sample_weight
-      * (
-        sum(sample_weight, na.rm = TRUE)
-        / (length(unique(country)) * country_sample_weight)
-      )
-    )
-  )
-  %>% mutate(
-    sample_weight = nrow(.) * sample_weight / sum(sample_weight, na.rm = TRUE)
   )
 )
 ```
@@ -234,7 +225,7 @@ df_heat_viol <- (
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    school_level = 100 * sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     .groups = "drop"
   )
@@ -252,7 +243,7 @@ df_heat_viol <- (
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    school_level = 100 * sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     .groups = "drop"
   )
@@ -271,7 +262,7 @@ df_heat_viol_adm <- (
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    school_level = 100 * sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
+    school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     .groups = "drop"
   )
@@ -499,16 +490,19 @@ sf_vacs <- (
 ```{r}
 df_model <- (
   df_heat_viol
-  # %>% filter(
-  #   female == 1,
-  # )
-  # %>% select(date, all_of(vars))
-  # %>% na.omit()
+  %>% select(all_of(vars))
+  %>% na.omit()
   %>% merge(
     sf_vacs %>% as.data.frame() %>% select(country, adm_name),
     by = c("country", "adm_name"),
     all.x = TRUE
   )
+  %>% group_by(country)
+  %>% mutate(
+    country_sample_weight = sum(sample_weight, na.rm = TRUE),
+    country_total_n = n()
+  )
+  %>% ungroup()
   %>% mutate(
     country = factor(country),
     adm_name = factor(adm_name),
@@ -518,7 +512,8 @@ df_model <- (
       levels = sort(unique(school_level)),
       ordered = TRUE
     ),
-    heat := scale(!!sym(heat_var))
+    heat := scale(!!sym(heat_var)),
+    sample_weight = country_total_n * sample_weight / country_sample_weight
   )
 )
 ```
@@ -566,6 +561,7 @@ form_ranint_adm_clu <- bf(
   as.formula(
     paste(
       viol_var,
+      "| weights(sample_weight)",
       "~",
       "(
         1 
@@ -588,8 +584,8 @@ fit_ranint_adm_clu <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 2000,
+  warmup = warmup,
+  iter = iter,
   # control = list(adapt_delta = adapt_delta),
   sample_prior = TRUE
 )
@@ -803,7 +799,12 @@ df_base_sv_by_country_ranint_adm_clu_stats <- (
 ##### Population level
 
 ```{r}
-generate_cont_marginal_df(fit_ranint_adm_clu, df_model, covs = c("heat"))
+generate_cont_marginal_df(
+  fit_ranint_adm_clu, 
+  df_model, 
+  covs = c("heat"), 
+  ndraws = min(ndraws(fit_ranint_adm_clu), 1000)
+)
 ```
 
 ```{r}
@@ -968,6 +969,7 @@ form_fix_int_cc <- bf(
   as.formula(
     paste(
       viol_var,
+      "| weights(sample_weight)",
       "~",
       "(
         1 
@@ -989,8 +991,8 @@ fit_fix_int_cc <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 2000,
+  warmup = warmup,
+  iter = iter,
   # control = list(adapt_delta = adapt_delta),
   # sample_prior = "only"
   sample_prior = TRUE
@@ -1209,7 +1211,12 @@ df_base_sv_by_country_fix_int_cc_stats <- (
 #| fig-width: 5
 #| fig-height: 3
 (
-  plot_continuous_marginal(fit_fix_int_cc, df_model, covs = c("heat"))
+  plot_continuous_marginal(
+    fit_fix_int_cc, 
+    df_model, 
+    covs = c("heat"),
+    ndraws = min(ndraws(fit_fix_int_cc), 1000)
+  )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
   )
@@ -1226,7 +1233,12 @@ df_base_sv_by_country_fix_int_cc_stats <- (
 #| fig-width: 12
 #| fig-height: 3
 (
-  plot_single_continuous_marginal_by_group(fit_fix_int_cc, df_model, cov = "heat")
+  plot_single_continuous_marginal_by_group(
+    fit_fix_int_cc, 
+    df_model, 
+    cov = "heat",
+    ndraws = min(ndraws(fit_fix_int_cc), 1000)
+  )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
   )
@@ -1466,6 +1478,7 @@ form_ranef_cou <- bf(
   as.formula(
     paste(
       viol_var,
+      "| weights(sample_weight)",
       "~",
       "(
         1 
@@ -1489,8 +1502,8 @@ fit_ranef_cou <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 2000,
+  warmup = warmup,
+  iter = iter,
   control = list(adapt_delta = 0.95),
   # sample_prior = "only"
   sample_prior = TRUE
@@ -1709,7 +1722,12 @@ df_base_sv_by_country_ranef_cou_stats <- (
 #| fig-width: 5
 #| fig-height: 3
 (
-  plot_continuous_marginal(fit_ranef_cou, df_model, covs = c("heat"))
+  plot_continuous_marginal(
+    fit_ranef_cou, 
+    df_model,
+    covs = c("heat"),
+    ndraws = min(ndraws(fit_ranef_cou), 1000)
+  )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
   )
@@ -1726,7 +1744,13 @@ df_base_sv_by_country_ranef_cou_stats <- (
 #| fig-width: 11
 #| fig-height: 2.4
 (
-  plot_single_continuous_marginal_by_group(fit_ranef_cou, df_model, grid_points = 15, ndraws = 4000, cov = "heat")
+  plot_single_continuous_marginal_by_group(
+    fit_ranef_cou,
+    df_model, 
+    grid_points = 15,
+    ndraws = min(ndraws(fit_ranef_cou), 1000),
+    cov = "heat"
+  )
   + labs(
     y = "NP violence (%)"
   )
@@ -1988,6 +2012,7 @@ form_sp <- bf(
   as.formula(
     paste(
       viol_var,
+      "| weights(sample_weight)",
       "~",
       "(
         1
@@ -2011,7 +2036,7 @@ fit_sp <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
+  warmup = warmup,
   iter = iter,
   # control = list(adapt_delta = adapt_delta),
   sample_prior = TRUE
@@ -2233,7 +2258,12 @@ df_base_sv_by_country_sp_stats <- (
 #| fig-width: 5
 #| fig-height: 3
 (
-  plot_continuous_marginal(fit_sp, df_model, covs = c("heat"))
+  plot_continuous_marginal(
+    fit_sp, 
+    df_model, 
+    covs = c("heat"),
+    ndraws = min(ndraws(fit_sp), 1000)
+  )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
   )
@@ -2396,6 +2426,7 @@ form_sp_ranef <- bf(
   as.formula(
     paste(
       viol_var,
+      "| weights(sample_weight)",
       "~",
       "(
         1
@@ -2420,7 +2451,7 @@ fit_sp_ranef <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
+  warmup = warmup,
   iter = iter,
   control = list(adapt_delta = 0.95),
   sample_prior = TRUE
@@ -2643,7 +2674,12 @@ df_base_sv_by_country_sp_ranef_stats <- (
 #| fig-width: 5
 #| fig-height: 3
 (
-  plot_continuous_marginal(fit_sp_ranef, df_model, covs = c("heat"))
+  plot_continuous_marginal(
+    fit_sp_ranef, 
+    df_model, 
+    covs = c("heat"),
+    ndraws = min(ndraws(fit_sp_ranef), 1000)
+  )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
   )
@@ -2660,7 +2696,13 @@ df_base_sv_by_country_sp_ranef_stats <- (
 #| fig-width: 11
 #| fig-height: 2.4
 (
-  plot_single_continuous_marginal_by_group(fit_sp_ranef, df_model, grid_points = 15, ndraws = 4000, cov = "heat")
+  plot_single_continuous_marginal_by_group(
+    fit_sp_ranef,
+    df_model,
+    grid_points = 15,
+    ndraws = min(ndraws(fit_sp_ranef), 1000),
+    cov = "heat"
+  )
   + labs(
     y = "NP violence (%)"
   )
@@ -2925,6 +2967,7 @@ form_sp_fixed <- bf(
   as.formula(
     paste(
       viol_var,
+      "| weights(sample_weight)",
       "~",
       "(
         1
@@ -2947,7 +2990,7 @@ fit_sp_fixed <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
+  warmup = warmup,
   iter = iter,
   control = list(adapt_delta = 0.95),
   sample_prior = TRUE
@@ -3170,7 +3213,12 @@ df_base_sv_by_country_sp_fixed_stats <- (
 #| fig-width: 5
 #| fig-height: 3
 (
-  plot_continuous_marginal(fit_sp_fixed, df_model, covs = c("heat"))
+  plot_continuous_marginal(
+    fit_sp_fixed, 
+    df_model,
+    covs = c("heat"),
+    ndraws = min(ndraws(fit_sp_fixed), 1000)
+  )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
   )
@@ -3187,7 +3235,13 @@ df_base_sv_by_country_sp_fixed_stats <- (
 #| fig-width: 11
 #| fig-height: 2.4
 (
-  plot_single_continuous_marginal_by_group(fit_sp_fixed, df_model, grid_points = 15, ndraws = 4000, cov = "heat")
+  plot_single_continuous_marginal_by_group(
+    fit_sp_fixed, 
+    df_model, 
+    grid_points = 15,
+    ndraws = min(ndraws(fit_sp_fixed), 1000),
+    cov = "heat"
+  )
   + labs(
     y = "NP violence (%)"
   )

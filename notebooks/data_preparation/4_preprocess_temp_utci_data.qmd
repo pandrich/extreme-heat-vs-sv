@@ -1,5 +1,5 @@
 ---
-title: "Preprocess Temperature  and UTCI Data"
+title: "Preprocess Temperature and UTCI Data"
 format: html
 editor: visual
 ---
@@ -31,15 +31,13 @@ source(file.path(src_dir, "data_processing.R"))
 ```{r}
 df_temp <- (
   read_csv(
-    file.path(proc_data_dir, "temp_max_daily_max.csv"),
+    file.path(proc_data_dir, "temp_max_daily.csv"),
     show_col_types = FALSE
   )
 )
 ```
 
 ## UTCI
-
-There are 10 UTCI thermal stress categories that correspond to specific human physiological responses to the thermal environment. The categories relate to UTCI values as follows: above +46: extreme heat stress; +38 to +46: very strong heat stress; +32 to +38: strong heat stress; +26 to +32: moderate heat stress; +9 to +26: no thermal stress; +9 to 0: slight cold stress; 0 to -13: moderate cold stress; -13 to -27: strong cold stress; -27 to -40: very strong cold stress; below -40: extreme cold stress.
 
 ```{r}
 df_utci <- (
@@ -872,7 +870,7 @@ df_heat_12m <- (
 # Save data
 
 ```{r}
-df_heat_12m %>% write_csv(file.path(proc_data_dir, "processed_heat_daily_max.csv"))
+df_heat_12m %>% write_csv(file.path(proc_data_dir, "processed_heat_daily.csv"))
 ```
 
 ```{r}

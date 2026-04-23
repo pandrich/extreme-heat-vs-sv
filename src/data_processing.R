@@ -3,9 +3,8 @@ build_temp_daily <- function(rast_temp, adm_shapes) {
     rast_temp
     %>% exactextractr::exact_extract(
       adm_shapes,
-      fun = "max",
-      # fun = "weighted_mean",
-      # weights = "area",
+      fun = "weighted_mean",
+      weights = "area",
       max_cells_in_memory = 176067000,
       append_cols = c("country", "adm_code", "adm_name")
     )
@@ -51,7 +50,6 @@ build_utci_daily <- function(utci_data_dir, country_map, adm_shapes) {
         rast_utci
         %>% exactextractr::exact_extract(
           shape,
-          # fun = "max",
           fun = "weighted_mean",
           weights = "area",
           max_cells_in_memory = 176067000,
@@ -60,13 +58,13 @@ build_utci_daily <- function(utci_data_dir, country_map, adm_shapes) {
         )
         %>% mutate(
           date = as.Date(date, format = "%Y-%m-%d"),
-          utci_max = max - 273.15
+          utci_max = weighted_mean - 273.15
         )
       )
     }
     dfs_utci[[c]] <- (
       bind_rows(dfs_utci_country)
-      %>% select(-max)
+      %>% select(-weighted_mean)
       %>% mutate(
         country = country_map[[c]]
       )
@@ -112,18 +110,12 @@ calculate_temp_12m_stats <- function(df_temp_daily, roll = FALSE, roll_days = 3)
     %>% arrange(country, adm_code, adm_name, date)
     %>% group_by(country, adm_code, adm_name)
     %>% mutate(
-      across(
-        -c(date, temp_2m_max),
-        ~ (
-          slider::slide_index_dbl(
-            .x = (.),
-            .i = date,
-            .f = ~ sum(.x, na.rm = TRUE),
-            .before = ~ .x %m-% months(12),
-            .complete = TRUE
-          )
-        ),
-        .names = "{.col}_12m"
+      above_1sd_12m = slider::slide_index_dbl(
+        .x = above_1sd,
+        .i = date,
+        .f = ~ sum(.x, na.rm = TRUE),
+        .before = ~ .x %m-% months(12),
+        .complete = TRUE
       ),
       max_12m = slider::slide_index_dbl(
         .x = temp_2m_max,
@@ -134,7 +126,7 @@ calculate_temp_12m_stats <- function(df_temp_daily, roll = FALSE, roll_days = 3)
       )
     )
     %>% ungroup()
-    %>% select(country, adm_code, adm_name, date, contains("12m"))
+    %>% select(-c(above_1sd, temp_2m_max))
     %>% filter(!is.na(above_1sd_12m))
     %>% pivot_longer(
       cols = -c(country, adm_code, adm_name, date),
@@ -188,24 +180,34 @@ calculate_utci_12m_stats <- function(df_utci_daily, roll = FALSE, roll_days = 3)
   } 
   df_utci_12m <- (
     df_utci_daily
+    %>% group_by(country, adm_code, adm_name)
     %>% mutate(
+      hist_mean = mean(utci_max, na.rm = TRUE),
+      hist_sd = sd(utci_max, na.rm = TRUE),
+    )
+    %>% ungroup()
+    %>% mutate(
+      sd_utci = (utci_max - hist_mean) / hist_sd,
+      above_1sd = as.numeric(sd_utci > 1),
       above_32 = as.numeric(utci_max > 32)
     )
+    %>% select(-c(hist_mean, hist_sd, sd_utci))
     %>% arrange(country, adm_code, adm_name, date)
     %>% group_by(country, adm_code, adm_name)
     %>% mutate(
-      across(
-        -c(date, utci_max),
-        ~ (
-          slider::slide_index_dbl(
-            .x = (.),
-            .i = date,
-            .f = ~ sum(.x, na.rm = TRUE),
-            .before = ~ .x %m-% months(12),
-            .complete = TRUE
-          )
-        ),
-        .names = "{.col}_12m"
+      above_32_12m = slider::slide_index_dbl(
+        .x = above_32,
+        .i = date,
+        .f = ~ sum(.x, na.rm = TRUE),
+        .before = ~ .x %m-% months(12),
+        .complete = TRUE
+      ),
+      above_1sd_12m = slider::slide_index_dbl(
+        .x = above_1sd,
+        .i = date,
+        .f = ~ sum(.x, na.rm = TRUE),
+        .before = ~ .x %m-% months(12),
+        .complete = TRUE
       ),
       max_12m = slider::slide_index_dbl(
         .x = utci_max,
@@ -216,7 +218,7 @@ calculate_utci_12m_stats <- function(df_utci_daily, roll = FALSE, roll_days = 3)
       )
     )
     %>% ungroup()
-    %>% select(country, adm_code, adm_name, date, contains("12m"))
+    %>% select(-c(above_32, above_1sd, utci_max))
     %>% filter(!is.na(above_32_12m))
     %>% pivot_longer(
       cols = -c(country, adm_code, adm_name, date),
