@@ -61,8 +61,8 @@ label_map <- c(
 # Var settings
 heat_var <- "dev_value_temp_above_1sd_12m"
 heat_label <- "excess_hot_days"
-viol_var <- "sv_nf"
-viol_label <- "nf_viol"
+viol_var <- "sv_nrel"
+viol_label <- "nrel_viol"
 covars <- c(
   "sample_weight",
   "country",
@@ -844,7 +844,8 @@ df_heat_pop_adm_clu <- (
     upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
   )
   %>% mutate(
-    country = "Overall"
+    country = "Overall",
+    model = "Base model"
   )
 )
 ```
@@ -912,7 +913,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1298,6 +1299,9 @@ df_heat_fix_int_cc <- (
     upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
     .groups = "drop"
   )
+  %>% mutate(
+    model = "Fixed slopes"
+  )
 )
 ```
 
@@ -1365,7 +1369,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1420,7 +1424,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1825,6 +1829,9 @@ df_heat_ranef_cou <- (
     df_heat_pop_ranef_cou_summ, 
     df_heat_gr_ranef_cou
   )
+  %>% mutate(
+    model = "Random slopes"
+  )
 )
 ```
 
@@ -1892,7 +1899,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1948,7 +1955,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2296,7 +2303,8 @@ df_heat_pop_sp <- (
     upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
   )
   %>% mutate(
-    country = "Overall"
+    country = "Overall",
+    model = "Spatial correlation"
   )
 )
 ```
@@ -2364,7 +2372,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2777,6 +2785,9 @@ df_heat_sp_ranef <- (
     df_heat_pop_sp_ranef_summ, 
     df_heat_gr_sp_ranef
   )
+  %>% mutate(
+    model = "Spatial correlation + random slopes"
+  )
 )
 ```
 
@@ -2844,7 +2855,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2900,7 +2911,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3301,6 +3312,9 @@ df_heat_sp_fixed <- (
     upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
     .groups = "drop"
   )
+  %>% mutate(
+    model = "Spatial correlation + fixed slopes"
+  )
 )
 ```
 
@@ -3368,7 +3382,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3423,7 +3437,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3477,4 +3491,36 @@ p2 <- (
 #   path = fig_dir,
 #   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_sp.svg")
 # )
+```
+
+# Export heat effects
+
+```{r}
+df_heat_pop_all <- (
+  bind_rows(
+    df_heat_pop_adm_clu,
+    df_heat_ranef_cou,
+    df_heat_pop_sp
+  )
+  %>% filter(
+    country == "Overall"
+  )
+  %>% mutate(
+    outcome = "Non relative"
+  )
+  %>% select(-country)
+  %>% relocate(outcome, model)
+)
+```
+
+```{r}
+(
+  df_heat_pop_all 
+  %>% write_csv(
+    file.path(
+      proc_data_dir, 
+      paste0("heat_effect_stats_", heat_label, "_", viol_label, ".csv")
+    )
+  )
+)
 ```

@@ -909,7 +909,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1360,7 +1360,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1415,7 +1415,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1885,7 +1885,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1941,7 +1941,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2355,7 +2355,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2833,7 +2833,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2889,7 +2889,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3355,7 +3355,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3410,7 +3410,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
