@@ -1,5 +1,5 @@
 ---
-title: "Model UTCI (number of excess hot days) effect on non-partner sexual violence, all female"
+title: "Model UTCI (number of hot days above 32) effect on non-partner sexual violence"
 project:
   output-dir: outputs
 date: last-modified
@@ -837,7 +837,8 @@ df_heat_pop_adm_clu <- (
     upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
   )
   %>% mutate(
-    country = "Overall"
+    country = "Overall",
+    model = "Base model"
   )
 )
 ```
@@ -905,7 +906,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1291,6 +1292,9 @@ df_heat_fix_int_cc <- (
     upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
     .groups = "drop"
   )
+  %>% mutate(
+    model = "Fixed slopes"
+  )
 )
 ```
 
@@ -1358,7 +1362,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1413,7 +1417,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1818,6 +1822,9 @@ df_heat_ranef_cou <- (
     df_heat_pop_ranef_cou_summ, 
     df_heat_gr_ranef_cou
   )
+  %>% mutate(
+    model = "Random slopes"
+  )
 )
 ```
 
@@ -1885,7 +1892,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1941,7 +1948,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2289,7 +2296,8 @@ df_heat_pop_sp <- (
     upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
   )
   %>% mutate(
-    country = "Overall"
+    country = "Overall",
+    model = "Spatial correlation"
   )
 )
 ```
@@ -2357,7 +2365,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2770,6 +2778,9 @@ df_heat_sp_ranef <- (
     df_heat_pop_sp_ranef_summ, 
     df_heat_gr_sp_ranef
   )
+  %>% mutate(
+    model = "Spatial correlation\n+ random slopes"
+  )
 )
 ```
 
@@ -2837,7 +2848,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2893,7 +2904,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3294,6 +3305,9 @@ df_heat_sp_fixed <- (
     upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
     .groups = "drop"
   )
+  %>% mutate(
+    model = "Spatial correlation\n+ fixed slopes"
+  )
 )
 ```
 
@@ -3361,7 +3375,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3416,7 +3430,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3470,4 +3484,95 @@ p2 <- (
 #   path = fig_dir,
 #   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_sp.svg")
 # )
+```
+
+# Summary of heat effects
+
+```{r}
+df_heat_pop_all <- (
+  bind_rows(
+    df_heat_pop_adm_clu,
+    df_heat_ranef_cou,
+    df_heat_pop_sp
+  )
+  %>% filter(
+    country == "Overall"
+  )
+  %>% select(-country)
+  %>% relocate(model)
+)
+```
+
+```{r}
+#| fig-width: 5
+#| fig-height: 2.5
+
+lims <- c(
+  min(df_heat_pop_all$lower2_val, 0.95), 
+  max(df_heat_pop_all$upper2_val)
+)
+
+(
+  df_heat_pop_all
+  %>% ggplot(
+    mapping = aes(
+      y = fct_reorder(model, median_val),
+    )
+  )
+  + geom_segment(
+    mapping = aes(
+      x = lower2_val,
+      xend = upper2_val
+    ),
+    color = col_palette[2],
+    linewidth = 1
+  )
+  + geom_segment(
+    mapping = aes(
+      x = lower1_val,
+      xend = upper1_val
+    ),
+    color = col_palette[1],
+    linewidth = 2
+  )
+  + geom_point(
+    mapping = aes(
+      x = median_val,
+    ),
+    size = 3,
+    color = col_palette[1]
+  )
+  + geom_vline(
+    xintercept = 1,
+    linetype = "dashed",
+    color = "black"
+  )
+  + scale_x_continuous(
+    limits = lims
+  )
+  + theme(
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.border = element_rect(fill = NA, color = "black", linewidth = 1),
+    plot.background = element_blank(),
+    plot.title = element_text(size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),,
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_blank(),
+    axis.text = element_text(size = 13),
+    legend.background = element_blank(),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 13),
+    legend.position = "inside",
+    legend.position.inside = c(0.8, 0.25)
+  )
+  + labs(
+    x = "Population Level Heat Risk Odds Ratio",
+  )
+)
+
+ggsave(
+  path = fig_dir,
+  filename = paste0("heat_effect_summary_", heat_label, "_", viol_label, ".png")
+)
 ```

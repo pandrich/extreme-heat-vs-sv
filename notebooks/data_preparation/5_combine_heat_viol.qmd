@@ -105,7 +105,6 @@ col_palette <- c("#dc7726", "#eebb93", "#ecc046","#0292b7", "#81c9db", "#35A29F"
 df_heat_viol %>% write_csv(file.path(proc_data_dir, "heat_violence_final.csv"))
 ```
 
-
 ```{r}
 sessionInfo()
 ```

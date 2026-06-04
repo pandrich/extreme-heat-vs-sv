@@ -1,5 +1,5 @@
 ---
-title: "Model temperature (rolling max temp) effect on non-partner sexual violence, all female"
+title: "Model temperature (rolling max temp) effect on non-partner sexual violence"
 project:
   output-dir: outputs
 date: last-modified
@@ -322,14 +322,14 @@ rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
     legend.ticks = element_line(color = "black")
   )
   + labs(
-    fill = "Excess hot days (std.)"
+    fill = "Excess max temp. (std.)"
   )
 )
 
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("map_heat_", heat_label, "_", viol_label, ".svg")
-# )
+ggsave(
+  path = fig_dir,
+  filename = paste0("map_heat_", heat_label, "_", viol_label, ".svg")
+)
 ```
 
 ```{r}
@@ -368,11 +368,11 @@ rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
   )
 )
 
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("map_heat_", heat_label, "_", viol_label, "_LSO.svg"),
-#   bg = "transparent"
-# )
+ggsave(
+  path = fig_dir,
+  filename = paste0("map_heat_", heat_label, "_", viol_label, "_LSO.svg"),
+  bg = "transparent"
+)
 ```
 
 ## Violence
@@ -911,7 +911,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1364,7 +1364,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1419,7 +1419,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1891,7 +1891,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -1947,7 +1947,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2363,7 +2363,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2843,7 +2843,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -2899,7 +2899,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3367,7 +3367,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
@@ -3422,7 +3422,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Temperature Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio"
   )
 )
 
