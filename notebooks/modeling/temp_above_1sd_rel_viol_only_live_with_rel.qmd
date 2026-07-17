@@ -37,6 +37,8 @@ proc_data_dir <- root("data/processed")
 src_dir <- root("src")
 fig_dir <- root("figures")
 dir.create(fig_dir, showWarnings = FALSE)
+out_dir <- root("model_outputs")
+dir.create(out_dir, showWarnings = FALSE)
 ```
 
 # Notebook settings
@@ -50,19 +52,25 @@ set.seed(seed)
 # Viz settings
 col_palette <- c("#dc7726", "#eebb93", "#ecc046", "#f6e0a3", "#0292b7", "#81c9db", "#35A29F", "#97DECE")
 label_map <- c(
-  live_with_partner = "Live with partner (%)",
   school_level = "Education attainment (%)",
   rural = "Rural area (%)",
   over_18 = "Over 18 (%)",
   heat = "Excess hot days (std.)",
-  sv = "RP-SV victimisation (%)"
+  sv = "R-SV victimisation (%)"
 )
 
 # Var settings
+countries <- c(
+  "Lesotho",
+  "Mozambique",
+  "Namibia",
+  "Zambia",
+  "Zimbabwe"
+)
 heat_var <- "dev_value_temp_above_1sd_12m"
 heat_label <- "excess_hot_days"
-viol_var <- "sv_rel"
-viol_label <- "rel_viol"
+viol_var <- "sv_f"
+viol_label <- "r_viol"
 covars <- c(
   "sample_weight",
   "country",
@@ -71,7 +79,6 @@ covars <- c(
   "rural",
   "over_18",
   "school_level",
-  "live_with_partner",
   viol_var
 )
 vars <- c(covars, heat_var)
@@ -205,7 +212,12 @@ df_heat_viol <- (
     show_col_type = FALSE
   )
   %>% filter(
-    female == 1,
+    (female == 1) 
+    & (
+      (live_with_partner == 1)
+      | (live_with_father == 1)
+      | (live_with_mother == 1)
+    )
   )
   %>% mutate(
     over_18 = as.numeric(age > 18)
@@ -223,7 +235,6 @@ df_heat_viol <- (
   %>% summarise(
     heat = mean(!!sym(heat_var), na.rm = TRUE),
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
@@ -241,7 +252,6 @@ df_heat_viol <- (
   %>% summarise(
     heat = mean(!!sym(heat_var), na.rm = TRUE),
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
@@ -260,7 +270,6 @@ df_heat_viol_adm <- (
   %>% summarise(
     heat = mean(!!sym(heat_var), na.rm = TRUE),
     rural = 100 * sum(rural * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
-    live_with_partner = 100 *sum(live_with_partner * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     over_18 = 100 * sum(over_18 * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     school_level = sum(school_level * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
     sv := 100 * sum(!!sym(viol_var) * sample_weight, na.rm = TRUE) / sum(sample_weight, na.rm = TRUE),
@@ -485,7 +494,7 @@ sf_vacs <- (
 )
 ```
 
-## Extract model subset
+## Extract model subsets
 
 ```{r}
 df_model <- (
@@ -548,7 +557,7 @@ plot(graph, add = TRUE, type = "l", col = "black")
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_ranint_adm_clu <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -567,7 +576,6 @@ form_ranint_adm_clu <- bf(
         1 
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -591,6 +599,19 @@ fit_ranint_adm_clu <- brm(
 )
 ```
 
+### Save Model
+
+```{r}
+saveRDS(
+  fit_ranint_adm_clu, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_ranint_adm_clu_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
+)
+```
+
 ### Model Checks
 
 ```{r}
@@ -603,7 +624,6 @@ bayesplot::mcmc_pairs(
     "sd_adm_name__Intercept", 
     "sd_adm_name:cluster__Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level", 
     "b_heat"
@@ -843,8 +863,7 @@ df_heat_pop_adm_clu <- (
     upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
   )
   %>% mutate(
-    country = "Overall",
-    model = "Base model"
+    country = "Overall"
   )
 )
 ```
@@ -963,7 +982,7 @@ p1
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(7, "num_pred")
+stanvars <- stanvar(6, "num_pred")
 
 prior_list_fix_int_cc <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -982,7 +1001,6 @@ form_fix_int_cc <- bf(
         1 
         + (1 | adm_name/cluster)
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + country * heat
@@ -1006,6 +1024,19 @@ fit_fix_int_cc <- brm(
 )
 ```
 
+### Save Model
+
+```{r}
+saveRDS(
+  fit_fix_int_cc, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_fix_int_cc_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
+)
+```
+
 ### Model Checks
 
 ```{r}
@@ -1016,7 +1047,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level", 
     "b_heat",
@@ -1298,9 +1328,6 @@ df_heat_fix_int_cc <- (
     upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
     .groups = "drop"
   )
-  %>% mutate(
-    model = "Fixed slopes"
-  )
 )
 ```
 
@@ -1475,7 +1502,7 @@ plot_calibration(fit_fix_int_cc, df_model, outcome_var = viol_var)
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_ranef_cou <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -1495,7 +1522,6 @@ form_ranef_cou <- bf(
         + (1 | adm_name/cluster)
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -1520,6 +1546,19 @@ fit_ranef_cou <- brm(
 )
 ```
 
+### Save Model
+
+```{r}
+saveRDS(
+  fit_ranef_cou, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_ranef_cou_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
+)
+```
+
 ### Model Checks
 
 ```{r}
@@ -1533,7 +1572,6 @@ bayesplot::mcmc_pairs(
     "sd_adm_name:cluster__Intercept",
     "r_country[Lesotho,heat]",
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level", 
     "b_heat"
@@ -1828,9 +1866,6 @@ df_heat_ranef_cou <- (
     df_heat_pop_ranef_cou_summ, 
     df_heat_gr_ranef_cou
   )
-  %>% mutate(
-    model = "Random slopes"
-  )
 )
 ```
 
@@ -2011,7 +2046,7 @@ p2 <- (
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_sp <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -2031,7 +2066,6 @@ form_sp <- bf(
         1
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -2056,6 +2090,19 @@ fit_sp <- brm(
 )
 ```
 
+### Save Model
+
+```{r}
+saveRDS(
+  fit_sp, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_sp_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
+)
+```
+
 ### Model Checks
 
 ```{r}
@@ -2066,7 +2113,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level",
     "b_heat",
@@ -2302,8 +2348,7 @@ df_heat_pop_sp <- (
     upper2_val = bayestestR::hdi(heat_pop, ci = 0.95)$CI_high,
   )
   %>% mutate(
-    country = "Overall",
-    model = "Spatial correlation"
+    country = "Overall"
   )
 )
 ```
@@ -2425,7 +2470,7 @@ p1
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_sp_ranef <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -2446,7 +2491,6 @@ form_sp_ranef <- bf(
         1
         + country
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + heat
@@ -2472,6 +2516,19 @@ fit_sp_ranef <- brm(
 )
 ```
 
+### Save Model
+
+```{r}
+saveRDS(
+  fit_sp_ranef, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_sp_ranef_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
+)
+```
+
 ### Model Checks
 
 ```{r}
@@ -2482,7 +2539,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level",
     "b_heat",
@@ -2784,9 +2840,6 @@ df_heat_sp_ranef <- (
     df_heat_pop_sp_ranef_summ, 
     df_heat_gr_sp_ranef
   )
-  %>% mutate(
-    model = "Spatial correlation + random slopes"
-  )
 )
 ```
 
@@ -2970,7 +3023,7 @@ p2 <- (
 
 ```{r}
 set.seed(seed)
-stanvars <- stanvar(6, "num_pred")
+stanvars <- stanvar(5, "num_pred")
 
 prior_list_sp_fixed <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
@@ -2989,7 +3042,6 @@ form_sp_fixed <- bf(
       "(
         1
         + rural
-        + live_with_partner
         + over_18
         + mo(school_level)
         + country * heat
@@ -3014,6 +3066,19 @@ fit_sp_fixed <- brm(
 )
 ```
 
+### Save Model
+
+```{r}
+saveRDS(
+  fit_sp_fixed, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_sp_fixed_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
+)
+```
+
 ### Model Checks
 
 ```{r}
@@ -3024,7 +3089,6 @@ bayesplot::mcmc_pairs(
   pars = c(
     "b_Intercept", 
     "b_rural",
-    "b_live_with_partner",
     "b_over_18",
     "bsp_moschool_level",
     "b_heat",
@@ -3311,9 +3375,6 @@ df_heat_sp_fixed <- (
     upper2_val = bayestestR::hdi(value, ci = 0.95)$CI_high,
     .groups = "drop"
   )
-  %>% mutate(
-    model = "Spatial correlation + fixed slopes"
-  )
 )
 ```
 
@@ -3490,36 +3551,4 @@ p2 <- (
 #   path = fig_dir,
 #   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_sp.svg")
 # )
-```
-
-# Export heat effects
-
-```{r}
-df_heat_pop_all <- (
-  bind_rows(
-    df_heat_pop_adm_clu,
-    df_heat_ranef_cou,
-    df_heat_pop_sp
-  )
-  %>% filter(
-    country == "Overall"
-  )
-  %>% mutate(
-    outcome = "Close relative"
-  )
-  %>% select(-country)
-  %>% relocate(outcome, model)
-)
-```
-
-```{r}
-(
-  df_heat_pop_all 
-  %>% write_csv(
-    file.path(
-      proc_data_dir, 
-      paste0("heat_effect_stats_", heat_label, "_", viol_label, ".csv")
-    )
-  )
-)
 ```

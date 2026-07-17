@@ -91,8 +91,8 @@ calculate_marginal_bin_difference <- function(fit, data, covariate) {
   newdata0[[covariate]] <- 0
   newdata1[[covariate]] <- 1
   
-  epreds0 <- posterior_epred(fit, newdata = newdata0, re_formula = NA)
-  epreds1 <- posterior_epred(fit, newdata = newdata1, re_formula = NA)
+  epreds0 <- brms::posterior_epred(fit, newdata = newdata0, re_formula = NA)
+  epreds1 <- brms::posterior_epred(fit, newdata = newdata1, re_formula = NA)
   
   diff_means <- rowMeans(epreds1 - epreds0)
   
@@ -113,8 +113,8 @@ calculate_marginal_bin_difference_by_group <- function(fit, data, covariate, gro
   groups <- unique(group_vec)
   group_indices <- split(seq_len(nrow(newdata0)), group_vec)
   
-  epreds0 <- posterior_epred(fit, newdata = newdata0, re_formula = NULL)
-  epreds1 <- posterior_epred(fit, newdata = newdata1, re_formula = NULL)
+  epreds0 <- brms::posterior_epred(fit, newdata = newdata0, re_formula = NULL)
+  epreds1 <- brms::posterior_epred(fit, newdata = newdata1, re_formula = NULL)
   epred_diff <- epreds1 - epreds0
   
   diff_means <- lapply(
@@ -174,8 +174,6 @@ create_df_marginal_bin_differences_stats <- function(marg_diff, cred1 = 0.5, cre
       upper1_exp_diff = bayestestR::hdi(expected_diff, ci = cred1)$CI_high,
       lower2_exp_diff = bayestestR::hdi(expected_diff, ci = cred2)$CI_low,
       upper2_exp_diff = bayestestR::hdi(expected_diff, ci = cred2)$CI_high,
-      # lower95_exp_diff = quantile(expected_diff, 0.025),
-      # upper95_exp_diff = quantile(expected_diff, 0.975),
       .groups = "drop"
     )
     %>% arrange(median_exp_diff)
@@ -193,8 +191,6 @@ create_df_marginal_bin_differences_stats_by_group <- function(marg_diff, cred1 =
       upper1_exp_diff = bayestestR::hdi(expected_diff, ci = cred1)$CI_high,
       lower2_exp_diff = bayestestR::hdi(expected_diff, ci = cred2)$CI_low,
       upper2_exp_diff = bayestestR::hdi(expected_diff, ci = cred2)$CI_high,
-      # lower95_exp_diff = quantile(expected_diff, 0.025),
-      # upper95_exp_diff = quantile(expected_diff, 0.975),
       .groups = "drop"
     )
     %>% ungroup()
@@ -208,7 +204,7 @@ calculate_marginal <- function(fit, data, cov, grid_vals, ndraws = 1000) {
   for (i in seq_along(grid_vals)) {
     newdata <- data
     newdata[[cov]] <- grid_vals[i]
-    ep <- posterior_epred(fit, newdata = newdata, re_formula = NA, ndraws=ndraws)
+    ep <- brms::posterior_epred(fit, newdata = newdata, re_formula = NA, ndraws=ndraws)
     draws_list[[i]] <- rowMeans(ep)
   }
   
@@ -242,7 +238,7 @@ calculate_marginal_by_group <- function(
     newdata <- data
     newdata[[cov]] <- grid_vals[i]
     group_indices <- split(seq_len(nrow(newdata)), group_vec)
-    ep <- posterior_epred(fit, newdata = newdata, re_formula = NULL, ndraws = ndraws)
+    ep <- brms::posterior_epred(fit, newdata = newdata, re_formula = NULL, ndraws = ndraws)
     draws_list[[i]] <- sapply(
       group_indices,
       function(country_idxs) {
@@ -380,7 +376,7 @@ generate_single_cont_marginal_by_group_df <- function(fit, data, cov, grid_point
 get_calibration_scores <- function(fit, data, outcome_var, model_name) {
   epreds <- (
     data
-    %>% add_epred_draws(
+    %>% tidybayes::add_epred_draws(
       fit,
       ndraws = 100,
       seed = seed

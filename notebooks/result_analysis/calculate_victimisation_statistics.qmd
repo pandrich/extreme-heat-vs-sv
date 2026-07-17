@@ -1,0 +1,466 @@
+---
+title: "Calculate data statistics"
+project:
+  output-dir: outputs
+date: last-modified
+format: 
+  html:
+    page-layout: full
+toc: true
+editor: visual
+warning: false
+execute: 
+  freeze: true
+  warning: false
+---
+
+# Environment Setup
+
+```{r setup}
+# Packages
+library(tidyverse)
+library(tidyterra)
+library(sf)
+
+# Folder Structure
+root <- rprojroot::has_file("extreme-heat-vs-sv.Rproj")$make_fix_file()
+raw_data_dir <- root("data/raw")
+proc_data_dir <- root("data/processed")
+out_dir <- root("model_outputs")
+```
+
+# Notebook settings
+
+```{r}
+# Viz settings
+col_palette <- c("#dc7726", "#eebb93", "#ecc046", "#f6e0a3", "#0292b7", "#81c9db", "#35A29F", "#97DECE")
+```
+
+# Functions
+
+```{r}
+source(file.path(src_dir, "model_check_utils.R"))
+```
+
+# Data Import
+
+## Population
+
+Data collected from: https://hub.worldpop.org/geodata/listing?id=139
+
+### Lesotho
+
+```{r}
+lso_pop_files <- list.files(file.path(raw_data_dir, "population", "lso_2020"), full.names = TRUE)
+rast_pops <- list()
+for (i in seq_along(lso_pop_files)) {
+  rast_pops[[i]] <- (
+    terra::rast(lso_pop_files[i])
+  )
+}
+popf_10_24_lso <- (
+  sum(terra::rast(rast_pops))
+  %>% rename(
+    pop = sum
+  )
+)
+```
+
+### Mozambique
+
+```{r}
+moz_pop_files <- list.files(file.path(raw_data_dir, "population", "moz_2020"), full.names = TRUE)
+rast_pops <- list()
+for (i in seq_along(moz_pop_files)) {
+  rast_pops[[i]] <- (
+    terra::rast(moz_pop_files[i])
+  )
+}
+popf_10_24_moz <- (
+  sum(terra::rast(rast_pops))
+  %>% rename(
+    pop = sum
+  )
+)
+```
+
+
+### Namibia
+
+```{r}
+nam_pop_files <- list.files(file.path(raw_data_dir, "population", "nam_2020"), full.names = TRUE)
+rast_pops <- list()
+for (i in seq_along(nam_pop_files)) {
+  rast_pops[[i]] <- (
+    terra::rast(nam_pop_files[i])
+  )
+}
+popf_10_24_nam <- (
+  sum(terra::rast(rast_pops))
+  %>% rename(
+    pop = sum
+  )
+)
+```
+
+### Zambia
+
+```{r}
+zmb_pop_files <- list.files(file.path(raw_data_dir, "population", "zmb_2020"), full.names = TRUE)
+rast_pops <- list()
+for (i in seq_along(zmb_pop_files)) {
+  rast_pops[[i]] <- (
+    terra::rast(zmb_pop_files[i])
+  )
+}
+popf_10_24_zmb <- (
+  sum(terra::rast(rast_pops))
+  %>% rename(
+    pop = sum
+  )
+)
+```
+
+### Zimbabwe
+
+```{r}
+zwe_pop_files <- list.files(file.path(raw_data_dir, "population", "zwe_2020"), full.names = TRUE)
+rast_pops <- list()
+for (i in seq_along(zwe_pop_files)) {
+  rast_pops[[i]] <- (
+    terra::rast(zwe_pop_files[i])
+  )
+}
+popf_10_24_zwe <- (
+  sum(terra::rast(rast_pops))
+  %>% rename(
+    pop = sum
+  )
+)
+```
+
+## Temperature
+
+```{r}
+rast_temp <- terra::rast(
+  file.path(
+    raw_data_dir, 
+    "temperature",
+    "era5_t2m_max_2000-2020.nc"
+  )
+)
+times <- terra::time(rast_temp)
+```
+
+## Model Data
+
+```{r}
+df_model_excess_hot_days_np_viol <- (
+  read_csv(
+    file.path(proc_data_dir, "df_model_excess_hot_days_np_viol.csv"),
+    show_col_type = FALSE
+  )
+)
+```
+
+## Model
+
+```{r}
+fit_ranef_cou_excess_hot_days_np_viol <- readRDS(file.path(out_dir, "fit_ranef_cou_excess_hot_days_np_viol.rds"))
+```
+
+
+# Data Processing
+
+## Total population by country
+
+```{r}
+tot_popf_10_24_lso <- (
+  terra::global(
+    popf_10_24_lso,
+    fun = function(x) sum(x, na.rm = TRUE)
+  )
+)
+
+tot_popf_10_24_nam <- (
+  terra::global(
+    popf_10_24_nam,
+    fun = function(x) sum(x, na.rm = TRUE)
+  )
+)
+
+tot_popf_10_24_moz <- (
+  terra::global(
+    popf_10_24_moz,
+    fun = function(x) sum(x, na.rm = TRUE)
+  )
+)
+
+tot_popf_10_24_zmb <- (
+  terra::global(
+    popf_10_24_zmb,
+    fun = function(x) sum(x, na.rm = TRUE)
+  )
+)
+
+tot_popf_10_24_zwe <- (
+  terra::global(
+    popf_10_24_zwe,
+    fun = function(x) sum(x, na.rm = TRUE)
+  )
+)
+```
+
+
+## Affected Population
+
+Resampling the population at the temperature grid.
+
+```{r}
+popf_10_24_lso_res <- exactextractr::exact_resample(
+  popf_10_24_lso,
+  rast_temp[[1]],
+  "sum"
+)
+names(popf_10_24_lso_res) <- "pop_lso"
+
+popf_10_24_moz_res <- exactextractr::exact_resample(
+  popf_10_24_moz,
+  rast_temp[[1]],
+  "sum"
+)
+names(popf_10_24_moz_res) <- "pop_moz"
+
+popf_10_24_nam_res <- exactextractr::exact_resample(
+  popf_10_24_nam,
+  rast_temp[[1]],
+  "sum"
+)
+names(popf_10_24_nam_res) <- "pop_nam"
+
+popf_10_24_zmb_res <- exactextractr::exact_resample(
+  popf_10_24_zmb,
+  rast_temp[[1]],
+  "sum"
+)
+names(popf_10_24_zmb_res) <- "pop_zmb"
+
+popf_10_24_zwe_res <- exactextractr::exact_resample(
+  popf_10_24_zwe,
+  rast_temp[[1]],
+  "sum"
+)
+names(popf_10_24_zwe_res) <- "pop_zwe"
+```
+
+## Combine data
+
+```{r}
+df_rast_temp_pop <- (
+  c(
+    rast_temp, 
+    popf_10_24_lso_res,
+    popf_10_24_moz_res,
+    popf_10_24_nam_res,
+    popf_10_24_zmb_res,
+    popf_10_24_zwe_res
+  )
+  %>% as_tibble()
+  %>% mutate(
+    tile_code = row_number()
+  )
+)
+names(df_rast_temp_pop)[1: length(times)] <- as.character(times)
+```
+
+
+## Calculate historical statistics
+
+```{r}
+df_stats_hist <- (
+  df_rast_temp_pop
+  %>% mutate(
+    country = case_when(
+      pop_lso > 0 ~ "Lesotho",
+      pop_moz > 0 ~ "Mozambique",
+      pop_nam > 0 ~ "Namibia",
+      pop_zmb > 0 ~ "Zambia",
+      pop_zwe > 0 ~ "Zimbabwe"
+    ),
+    pop = rowSums(
+      across(contains("pop")),
+      na.rm = TRUE
+    )
+  )
+  %>% select(
+    -contains("pop_")
+  )
+  %>% filter(
+    pop > 0
+  )
+  %>% pivot_longer(
+    cols = -c("country", "tile_code", "pop"),
+    names_to = "date",
+    values_to = "temp"
+  )
+  %>% mutate(
+    date = as.Date(date)
+  )
+  %>% group_by(country, tile_code)
+  %>% mutate(
+    hist_mean = mean(temp, na.rm = TRUE),
+    hist_sd = sd(temp, na.rm = TRUE)
+  )
+  %>% ungroup()
+  %>% mutate(
+    sd_temp = (temp - hist_mean) / hist_sd,
+    above_1sd = as.numeric(sd_temp > 1)
+  )
+  %>% select(-c(hist_mean, hist_sd, sd_temp))
+)
+```
+
+## Calculate previous 12 month statistics
+
+```{r}
+df_stats_12m <- (
+  df_stats_hist
+  %>% arrange(country, tile_code, date)
+  %>% group_by(country, tile_code, pop)
+  %>% mutate(
+    above_1sd_12m = slider::slide_index_dbl(
+      .x = above_1sd,
+      .i = date,
+      .f = ~ sum(.x, na.rm = TRUE),
+      .before = ~ .x %m-% months(12),
+      .complete = TRUE
+    )
+  )
+  %>% ungroup()
+  %>% select(-c(above_1sd, temp))
+  %>% filter(!is.na(above_1sd_12m))
+  %>% group_by(country, tile_code, pop)
+  %>% mutate(
+    mean_days_above_1sd = mean(above_1sd_12m, na.rm = TRUE),
+    sd_days_above_1sd = sd(above_1sd_12m, na.rm = TRUE)
+  )
+  %>% ungroup()
+  %>% mutate(
+    dev_days_above_1sd = if_else(
+      sd_days_above_1sd == 0,
+      0,
+      (above_1sd_12m - mean_days_above_1sd) / sd_days_above_1sd
+    )
+  )
+)
+```
+
+## Select time of reference
+
+```{r}
+df_stats_ref <- (
+  df_stats_12m
+  %>% filter(
+    date == "2020-12-31"
+  )
+)
+```
+
+## Calculate population in exposure bins
+
+```{r}
+df_pop_affected <- (
+  df_stats_ref
+  %>% mutate(
+    exp_bin = cut(
+      dev_days_above_1sd, 
+      breaks = c(-Inf, seq(1, 2, 1), Inf), 
+      labels = c("pop_below_1", "pop_1_to_2", "pop_above_2"),
+      include.lowest = FALSE
+    )
+  )
+  %>% filter(
+    dev_days_above_1sd > 1
+  )
+  %>% group_by(country, exp_bin)
+  %>% summarise(
+    pop = round(sum(pop, na.rm = TRUE)),
+    .groups = "drop"
+  )
+  %>% ungroup()
+  %>% pivot_wider(
+    id_cols = country,
+    names_from = exp_bin,
+    values_from = pop,
+    values_fill = 0
+  )
+)
+```
+
+```{r}
+df_pop_affected
+```
+
+## Victimisation by country
+
+```{r}
+stats_vict <- generate_single_cont_marginal_by_group_df(
+  fit_ranef_cou_excess_hot_days_np_viol, 
+  df_model_excess_hot_days_np_viol, 
+  cov = "heat", 
+  grid_points = 15, 
+  ndraws = min(brms::ndraws(fit_ranef_cou_excess_hot_days_np_viol), 1000), 
+  group = "country"
+)
+```
+
+```{r}
+(
+  stats_vict
+  %>% filter(
+    covariate_value >= -0.2
+  )
+  %>% mutate(
+    heat = cut(
+      covariate_value, 
+      breaks = c(-0.2, 0.2, 1, 2, Inf),
+      labels = c("baseline", "from_02_to_1", "from_1_to_2", "above_2")
+    )
+  )
+  %>% group_by(group, heat)
+  %>% summarise(
+    median = median(median),
+    .groups = "drop"
+  )
+  %>% pivot_wider(
+    id_cols = group,
+    names_from = heat,
+    values_from = median
+  )
+  %>% mutate(
+    excess_1_to_2 = from_1_to_2 - baseline,
+    excess_2_plus = above_2 - baseline
+  )
+  %>% select(
+    country = group,
+    baseline,
+    excess_1_to_2,
+    excess_2_plus
+  )
+  %>% merge(
+    df_pop_affected,
+    by = "country",
+    all.x = TRUE
+  )
+  %>% mutate(
+    baseline_victims = round((pop_1_to_2 + pop_above_2) * baseline),
+    excess_victims = round(pop_1_to_2 * excess_1_to_2 + pop_above_2 * excess_2_plus)
+  )
+  %>% select(
+    country,
+    baseline_victims,
+    excess_victims
+  )
+)
+```
+
