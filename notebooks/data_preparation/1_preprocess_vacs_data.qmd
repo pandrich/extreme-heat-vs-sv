@@ -77,6 +77,27 @@ adm_lso <- (
 )
 ```
 
+```{r}
+# x <- rnorm(1000, 0, 1) 
+# x <- rcauchy(1000, 0, 1)
+m <- c(0.1, 0.3, 0.6)
+alpha <- m / 2 + 1
+
+x <- brms::rdirichlet(alpha = c(alpha[1], alpha[2], alpha[3]), n = 1000) 
+# d <- seq(-10, 10, 0.01)
+# tri_probs <- (10 - abs(d))
+# tri_probs <- tri_probs / sum(tri_probs)
+# x <- sample(d, replace = TRUE, prob = tri_probs)
+# y <- pnorm(x, 0, 1)
+# y <- pcauchy(x, 0, 1)
+hist(x[, 1], breaks = 30)
+hist(x[, 2], breaks = 30)
+hist(x[, 3], breaks = 30)
+# hist(x, breaks = 50)
+# plot(d, tri_probs)
+```
+
+
 ### Namibia
 
 ```{r}
@@ -208,14 +229,14 @@ vacs_moz <- (
       (sv_1 == 1 & (sv1who %in% c(1:4, 21:24) | sv1ftr %in% c(1:4, 21:24))) ~ 1,
       .default = 0
     ),
-    sv_f_1 = case_when(
+    sv_rel_1 = case_when(
       is.na(sv_1) ~ NA,
       (sv1who > 88 & sv1ftr > 88) ~ NA,
       (sv_1 == 1 & (is.na(sv1who) & is.na(sv1ftr))) ~ NA,
       (sv_1 == 1 & (sv1who %in% c(1:8, 21:28) | sv1ftr %in% c(1:8, 21:28))) ~ 1,
       .default = 0
     ),
-    sv_nf_1 = case_when(
+    sv_nrel_1 = case_when(
       is.na(sv_1) ~ NA,
       (sv1who > 88 & sv1ftr > 88) ~ NA,
       (sv_1 == 1 & (is.na(sv1who) & is.na(sv1ftr))) ~ NA,
@@ -259,14 +280,14 @@ vacs_moz <- (
       (sv_2 == 1 & (sv2who %in% c(1:4, 21:24) | sv2ftr %in% c(1:4, 21:24))) ~ 1,
       .default = 0
     ),
-    sv_f_2 = case_when(
+    sv_rel_2 = case_when(
       is.na(sv_2) ~ NA,
       (sv2who > 88 & sv2ftr > 88) ~ NA,
       (sv_2 == 1 & (is.na(sv2who) & is.na(sv2ftr))) ~ NA,
       (sv_2 == 1 & (sv2who %in% c(1:8, 21:28) | sv2ftr %in% c(1:8, 21:28))) ~ 1,
       .default = 0
     ),
-    sv_nf_2 = case_when(
+    sv_nrel_2 = case_when(
       is.na(sv_2) ~ NA,
       (sv2who > 88 & sv2ftr > 88) ~ NA,
       (sv_2 == 1 & (is.na(sv2who) & is.na(sv2ftr))) ~ NA,
@@ -310,14 +331,14 @@ vacs_moz <- (
       (sv_3 == 1 & (sv3who %in% c(1:4, 21:24) | sv3ftr %in% c(1:4, 21:24))) ~ 1,
       .default = 0
     ),
-    sv_f_3 = case_when(
+    sv_rel_3 = case_when(
       is.na(sv_3) ~ NA,
       (sv3who > 88 & sv3ftr > 88) ~ NA,
       (sv_3 == 1 & (is.na(sv3who) & is.na(sv3ftr))) ~ NA,
       (sv_3 == 1 & (sv2who %in% c(1:8, 21:28) | sv2ftr %in% c(1:8, 21:28))) ~ 1,
       .default = 0
     ),
-    sv_nf_3 = case_when(
+    sv_nrel_3 = case_when(
       is.na(sv_3) ~ NA,
       (sv3who > 88 & sv3ftr > 88) ~ NA,
       (sv_3 == 1 & (is.na(sv3who) & is.na(sv3ftr))) ~ NA,
@@ -361,14 +382,14 @@ vacs_moz <- (
       (sv_4 == 1 & (sv4who %in% c(1:4, 21:24) | sv4ftr %in% c(1:4, 21:24))) ~ 1,
       .default = 0
     ),
-    sv_f_4 = case_when(
+    sv_rel_4 = case_when(
       is.na(sv_4) ~ NA,
       (sv4who > 88 & sv4ftr > 88) ~ NA,
       (sv_4 == 1 & (is.na(sv4who) & is.na(sv4ftr))) ~ NA,
       (sv_4 == 1 & (sv4who %in% c(1:8, 21:28) | sv4ftr %in% c(1:8, 21:28))) ~ 1,
       .default = 0
     ),
-    sv_nf_4 = case_when(
+    sv_nrel_4 = case_when(
       is.na(sv_4) ~ NA,
       (sv4who > 88 & sv4ftr > 88) ~ NA,
       (sv_4 == 1 & (is.na(sv4who) & is.na(sv4ftr))) ~ NA,
@@ -412,14 +433,14 @@ vacs_moz <- (
       (sv_5 == 1 & (sv5who %in% c(1:4, 21:24) | sv5ftr %in% c(1:4, 21:24))) ~ 1,
       .default = 0
     ),
-    sv_f_5 = case_when(
+    sv_rel_5 = case_when(
       is.na(sv_5) ~ NA,
       (sv5who > 88 & sv5ftr > 88) ~ NA,
       (sv_5 == 1 & (is.na(sv5who) & is.na(sv5ftr))) ~ NA,
       (sv_5 == 1 & (sv5who %in% c(1:8, 21:28) | sv5ftr %in% c(1:8, 21:28))) ~ 1,
       .default = 0
     ),
-    sv_nf_5 = case_when(
+    sv_nrel_5 = case_when(
       is.na(sv_5) ~ NA,
       (sv5who > 88 & sv5ftr > 88) ~ NA,
       (sv_5 == 1 & (is.na(sv5who) & is.na(sv5ftr))) ~ NA,
@@ -466,19 +487,19 @@ vacs_moz <- (
       ) ~ NA,
       .default = 0
     ),
-    sv_f = case_when(
-      rowSums(across(starts_with("sv_f")), na.rm = TRUE) > 0 ~ 1,
+    sv_rel = case_when(
+      rowSums(across(starts_with("sv_rel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_f")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_f"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_rel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_rel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
-    sv_nf = case_when(
-      rowSums(across(starts_with("sv_nf")), na.rm = TRUE) > 0 ~ 1,
+    sv_nrel = case_when(
+      rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_nf")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_nf"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_nrel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
@@ -518,14 +539,13 @@ vacs_moz <- (
     sv,
     sv_np,
     sv_ip,
-    sv_f,
-    sv_nf,
+    sv_rel,
+    sv_nrel,
     sv_in,
     sv_out
   )
 )
 ```
-
 
 ```{r}
 # (
@@ -562,7 +582,6 @@ vacs_moz <- (
 # )
 #     
 ```
-
 
 ### Zimbabwe
 
@@ -627,14 +646,14 @@ vacs_zwe <- (
       (sv_1 == 1 & (q607 %in% c(1:4, 17:20) | q617 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_f_1 = case_when(
+    sv_rel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q607 > 88 & q617 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q607) & is.na(q617))) ~ NA,
       (sv_1 == 1 & (q607 %in% c(1:8, 17:24) | q617 %in% c(1:8, 17:24))) ~ 1,
       .default = 0
     ),
-    sv_nf_1 = case_when(
+    sv_nrel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q607 > 88 & q617 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q607) & is.na(q617))) ~ NA,
@@ -677,14 +696,14 @@ vacs_zwe <- (
       (sv_2 == 1 & (q707 %in% c(1:4) | q717 %in% c(1:4))) ~ 1,
       .default = 0
     ),
-    sv_nf_2 = case_when(
+    sv_nrel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q707 > 88 & q717 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
       (sv_2 == 1 & (q707 %in% c(9:88) | q717 %in% c(9:23, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_2 = case_when(
+    sv_rel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q707 > 88 & q717 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
@@ -727,14 +746,14 @@ vacs_zwe <- (
       (sv_3 == 1 & (q807 %in% c(1:4) | q820 %in% c(1:4))) ~ 1,
       .default = 0
     ),
-    sv_nf_3 = case_when(
+    sv_nrel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q807 > 88 & q820 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q807) & is.na(q820))) ~ NA,
       (sv_3 == 1 & (q807 %in% c(9:88) | q820 %in% c(9:88))) ~ 1,
       .default = 0
     ),
-    sv_f_3 = case_when(
+    sv_rel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q807 > 88 & q820 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q807) & is.na(q820))) ~ NA,
@@ -777,14 +796,14 @@ vacs_zwe <- (
       (sv_4 == 1 & (q907 %in% c(1:4) | q919 %in% c(1:4))) ~ 1,
       .default = 0
     ),
-    sv_nf_4 = case_when(
+    sv_nrel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q907 > 88 & q919 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q907) & is.na(q919))) ~ NA,
       (sv_4 == 1 & (q907 %in% c(9:88) | q919 %in% c(9:88))) ~ 1,
       .default = 0
     ),
-    sv_f_4 = case_when(
+    sv_rel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q907 > 88 & q919 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q907) & is.na(q919))) ~ NA,
@@ -831,19 +850,19 @@ vacs_zwe <- (
       ) ~ NA,
       .default = 0
     ),
-    sv_nf = case_when(
-      rowSums(across(starts_with("sv_nf")), na.rm = TRUE) > 0 ~ 1,
+    sv_nrel = case_when(
+      rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_nf")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_nf"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_nrel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
-    sv_f = case_when(
-      rowSums(across(starts_with("sv_f")), na.rm = TRUE) > 0 ~ 1,
+    sv_rel = case_when(
+      rowSums(across(starts_with("sv_rel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_f")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_f"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_rel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_rel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
@@ -883,15 +902,13 @@ vacs_zwe <- (
     sv,
     sv_np,
     sv_ip,
-    sv_f,
-    sv_nf,
+    sv_rel,
+    sv_nrel,
     sv_in,
     sv_out
   )
 )
 ```
-
-
 
 ```{r}
 # (
@@ -919,7 +936,6 @@ vacs_zwe <- (
 #   )
 # )
 ```
-
 
 ### Lesotho
 
@@ -999,14 +1015,14 @@ vacs_lso <- (
       (sv_1 == 1 & (q605 %in% c(1:4, 17:20) | q612 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_1 = case_when(
+    sv_nrel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q605 > 88 & q612 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
       (sv_1 == 1 & (q605 %in% c(9:16, 25:88) | q612 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_1 = case_when(
+    sv_rel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q605 > 88 & q612 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
@@ -1050,14 +1066,14 @@ vacs_lso <- (
       (sv_2 == 1 & (q705 %in% c(1:4, 17:20) | q712 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_2 = case_when(
+    sv_nrel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q705 > 88 & q712 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
       (sv_2 == 1 & (q705 %in% c(9:16, 25:88) | q712 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_2 = case_when(
+    sv_rel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q705 > 88 & q712 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
@@ -1101,14 +1117,14 @@ vacs_lso <- (
       (sv_3 == 1 & (q805 %in% c(1:4, 17:20) | q813 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_3 = case_when(
+    sv_nrel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q805 > 88 & q813 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
       (sv_3 == 1 & (q805 %in% c(9:16, 25:88) | q813 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_3 = case_when(
+    sv_rel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q805 > 88 & q813 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
@@ -1152,14 +1168,14 @@ vacs_lso <- (
       (sv_4 == 1 & (q905 %in% c(1:4, 17:20) | q912 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_4 = case_when(
+    sv_nrel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q905 > 88 & q912 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
       (sv_4 == 1 & (q905 %in% c(9:16, 25:88) | q912 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_4 = case_when(
+    sv_rel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q905 > 88 & q912 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
@@ -1203,14 +1219,14 @@ vacs_lso <- (
       (sv_5 == 1 & (q1005 %in% c(1:4, 17:20) | q1012 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_5 = case_when(
+    sv_nrel_5 = case_when(
       is.na(sv_5) ~ NA,
       (q1005 > 88 & q1012 > 88) ~ NA,
       (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
       (sv_5 == 1 & (q1005 %in% c(9:16, 25:88) | q1012 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_5 = case_when(
+    sv_rel_5 = case_when(
       is.na(sv_5) ~ NA,
       (q1005 > 88 & q1012 > 88) ~ NA,
       (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
@@ -1257,19 +1273,19 @@ vacs_lso <- (
       ) ~ NA,
       .default = 0
     ),
-    sv_nf = case_when(
-      rowSums(across(starts_with("sv_nf")), na.rm = TRUE) > 0 ~ 1,
+    sv_nrel = case_when(
+      rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_nf")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_nf"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_nrel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
-    sv_f = case_when(
-      rowSums(across(starts_with("sv_f")), na.rm = TRUE) > 0 ~ 1,
+    sv_rel = case_when(
+      rowSums(across(starts_with("sv_rel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_f")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_f"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_rel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_rel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
@@ -1309,8 +1325,8 @@ vacs_lso <- (
     sv,
     sv_np,
     sv_ip,
-    sv_f,
-    sv_nf,
+    sv_rel,
+    sv_nrel,
     sv_in,
     sv_out
   )
@@ -1351,7 +1367,6 @@ vacs_lso <- (
 #   )
 # )
 ```
-
 
 ### Namibia
 
@@ -1437,14 +1452,14 @@ vacs_nam <- (
       (sv_1 == 1 & (q605 %in% c(1:4, 19:21) | q612 %in% c(1:4, 19:21))) ~ 1,
       .default = 0
     ),
-    sv_nf_1 = case_when(
+    sv_nrel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q605 > 88 & q612 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
       (sv_1 == 1 & (q605 %in% c(9:18, 27:88) | q612 %in% c(9:18, 27:88))) ~ 1,
       .default = 0
     ),
-    sv_f_1 = case_when(
+    sv_rel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q605 > 88 & q612 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q605) & is.na(q612))) ~ NA,
@@ -1488,14 +1503,14 @@ vacs_nam <- (
       (sv_2 == 1 & (q705 %in% c(1:4, 19:21) | q712 %in% c(1:4, 19:21))) ~ 1,
       .default = 0
     ),
-    sv_nf_2 = case_when(
+    sv_nrel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q705 > 88 & q712 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
       (sv_2 == 1 & (q705 %in% c(9:18, 27:88) | q712 %in% c(9:18, 27:88))) ~ 1,
       .default = 0
     ),
-    sv_f_2 = case_when(
+    sv_rel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q705 > 88 & q712 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q705) & is.na(q712))) ~ NA,
@@ -1539,14 +1554,14 @@ vacs_nam <- (
       (sv_3 == 1 & (q805 %in% c(1:4, 19:21) | q813 %in% c(1:4, 19:21))) ~ 1,
       .default = 0
     ),
-    sv_nf_3 = case_when(
+    sv_nrel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q805 > 88 & q813 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
       (sv_3 == 1 & (q805 %in% c(9:18, 27:88) | q813 %in% c(9:18, 27:88))) ~ 1,
       .default = 0
     ),
-    sv_f_3 = case_when(
+    sv_rel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q805 > 88 & q813 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q805) & is.na(q813))) ~ NA,
@@ -1590,14 +1605,14 @@ vacs_nam <- (
       (sv_4 == 1 & (q905 %in% c(1:4, 19:21) | q912 %in% c(1:4, 19:21))) ~ 1,
       .default = 0
     ),
-    sv_nf_4 = case_when(
+    sv_nrel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q905 > 88 & q912 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
       (sv_4 == 1 & (q905 %in% c(9:18, 27:88) | q912 %in% c(9:18, 27:88))) ~ 1,
       .default = 0
     ),
-    sv_f_4 = case_when(
+    sv_rel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q905 > 88 & q912 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q905) & is.na(q912))) ~ NA,
@@ -1641,14 +1656,14 @@ vacs_nam <- (
       (sv_5 == 1 & (q1005 %in% c(1:4, 19:21) | q1012 %in% c(1:4, 19:21))) ~ 1,
       .default = 0
     ),
-    sv_nf_5 = case_when(
+    sv_nrel_5 = case_when(
       is.na(sv_5) ~ NA,
       (q1005 > 88 & q1012 > 88) ~ NA,
       (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
       (sv_5 == 1 & (q1005 %in% c(9:18, 27:88) | q1012 %in% c(9:18, 27:88))) ~ 1,
       .default = 0
     ),
-    sv_f_5 = case_when(
+    sv_rel_5 = case_when(
       is.na(sv_5) ~ NA,
       (q1005 > 88 & q1012 > 88) ~ NA,
       (sv_5 == 1 & (is.na(q1005) & is.na(q1012))) ~ NA,
@@ -1695,19 +1710,19 @@ vacs_nam <- (
       ) ~ NA,
       .default = 0
     ),
-    sv_nf = case_when(
-      rowSums(across(starts_with("sv_nf")), na.rm = TRUE) > 0 ~ 1,
+    sv_nrel = case_when(
+      rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_nf")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_nf"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_nrel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
-    sv_f = case_when(
-      rowSums(across(starts_with("sv_f")), na.rm = TRUE) > 0 ~ 1,
+    sv_rel = case_when(
+      rowSums(across(starts_with("sv_rel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_f")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_f"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_rel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_rel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
@@ -1747,14 +1762,13 @@ vacs_nam <- (
     sv,
     sv_np,
     sv_ip,
-    sv_f,
-    sv_nf,
+    sv_rel,
+    sv_nrel,
     sv_in,
     sv_out
   )
 )
 ```
-
 
 ```{r}
 # (
@@ -1893,14 +1907,14 @@ vacs_zmb <- (
       (sv_1 == 1 & (q707 %in% c(1:4, 17:20) | q717 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_1 = case_when(
+    sv_nrel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q707 > 88 & q717 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
       (sv_1 == 1 & (q707 %in% c(9:16, 25:88) | q717 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_1 = case_when(
+    sv_rel_1 = case_when(
       is.na(sv_1) ~ NA,
       (q707 > 88 & q717 > 88) ~ NA,
       (sv_1 == 1 & (is.na(q707) & is.na(q717))) ~ NA,
@@ -1943,14 +1957,14 @@ vacs_zmb <- (
       (sv_2 == 1 & (q807 %in% c(1:4, 17:20) | q817 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_2 = case_when(
+    sv_nrel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q807 > 88 & q817 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q807) & is.na(q817))) ~ NA,
       (sv_2 == 1 & (q807 %in% c(9:16, 25:88) | q817 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_2 = case_when(
+    sv_rel_2 = case_when(
       is.na(sv_2) ~ NA,
       (q807 > 88 & q817 > 88) ~ NA,
       (sv_2 == 1 & (is.na(q807) & is.na(q817))) ~ NA,
@@ -1993,14 +2007,14 @@ vacs_zmb <- (
       (sv_3 == 1 & (q907 %in% c(1:4, 17:20) | q920 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_3 = case_when(
+    sv_nrel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q907 > 88 & q920 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q907) & is.na(q920))) ~ NA,
       (sv_3 == 1 & (q907 %in% c(9:16, 25:88) | q920 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_3 = case_when(
+    sv_rel_3 = case_when(
       is.na(sv_3) ~ NA,
       (q907 > 88 & q920 > 88) ~ NA,
       (sv_3 == 1 & (is.na(q907) & is.na(q920))) ~ NA,
@@ -2043,14 +2057,14 @@ vacs_zmb <- (
       (sv_4 == 1 & (q1007 %in% c(1:4, 17:20) | q1019 %in% c(1:4, 17:20))) ~ 1,
       .default = 0
     ),
-    sv_nf_4 = case_when(
+    sv_nrel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q1007 > 88 & q1019 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q1007) & is.na(q1019))) ~ NA,
       (sv_4 == 1 & (q1007 %in% c(9:16, 25:88) | q1019 %in% c(9:16, 25:88))) ~ 1,
       .default = 0
     ),
-    sv_f_4 = case_when(
+    sv_rel_4 = case_when(
       is.na(sv_4) ~ NA,
       (q1007 > 88 & q1019 > 88) ~ NA,
       (sv_4 == 1 & (is.na(q1007) & is.na(q1019))) ~ NA,
@@ -2097,19 +2111,19 @@ vacs_zmb <- (
       ) ~ NA,
       .default = 0
     ),
-    sv_nf = case_when(
-      rowSums(across(starts_with("sv_nf")), na.rm = TRUE) > 0 ~ 1,
+    sv_nrel = case_when(
+      rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_nf")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_nf"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_nrel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_nrel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
-    sv_f = case_when(
-      rowSums(across(starts_with("sv_f")), na.rm = TRUE) > 0 ~ 1,
+    sv_rel = case_when(
+      rowSums(across(starts_with("sv_rel")), na.rm = TRUE) > 0 ~ 1,
       (
-        (rowSums(across(starts_with("sv_f")), na.rm = TRUE) == 0)
-        & (if_any(starts_with("sv_f"), ~ is.na(.)))
+        (rowSums(across(starts_with("sv_rel")), na.rm = TRUE) == 0)
+        & (if_any(starts_with("sv_rel"), ~ is.na(.)))
       ) ~ NA,
       .default = 0
     ),
@@ -2149,14 +2163,13 @@ vacs_zmb <- (
     sv,
     sv_np,
     sv_ip,
-    sv_f,
-    sv_nf,
+    sv_rel,
+    sv_nrel,
     sv_in,
     sv_out
   )
 )
 ```
-
 
 ```{r}
 # (
@@ -2183,7 +2196,6 @@ vacs_zmb <- (
 #   )
 # )
 ```
-
 
 # Combine
 

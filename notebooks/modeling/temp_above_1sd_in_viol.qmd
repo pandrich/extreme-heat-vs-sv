@@ -37,6 +37,8 @@ proc_data_dir <- root("data/processed")
 src_dir <- root("src")
 fig_dir <- root("figures")
 dir.create(fig_dir, showWarnings = FALSE)
+out_dir <- root("model_outputs")
+dir.create(out_dir, showWarnings = FALSE)
 ```
 
 # Notebook settings
@@ -84,7 +86,6 @@ iter = 2000
 # Functions
 
 ```{r}
-source(file.path(src_dir, "utils.R"))
 source(file.path(src_dir, "viz.R"))
 source(file.path(src_dir, "model_check_utils.R"))
 ```
@@ -136,17 +137,13 @@ sf_lso <- (
   st_read(
     file.path(geo_data_dir, "Lesotho 2023 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
   )
+  %>% st_make_valid()
   %>% rename_with(tolower)
   %>% select(
     country = cntrynamee,
     adm_name = dhsregen,
     adm_code = regcode
   )
-  %>% rowwise()
-  %>% mutate(
-    geometry = fix_geometry(geometry)
-  )
-  %>% ungroup()
   %>% arrange(adm_code)
 )
 ```
@@ -176,17 +173,13 @@ sf_zmb <- (
   st_read(
     file.path(geo_data_dir, "Zambia 2018 DHS - sdr_subnational_boundaries", "shps", "sdr_subnational_boundaries.shp")
   )
+  %>% st_make_valid()
   %>% rename_with(tolower)
   %>% select(
     country = cntrynamee,
     adm_name = dhsregen,
     adm_code = regcode
   )
-  %>% rowwise()
-  %>% mutate(
-    geometry = fix_geometry(geometry)
-  )
-  %>% ungroup()
   %>% arrange(adm_code)
 )
 ```
@@ -203,14 +196,31 @@ sf_all <- (
     sf_zmb,
   )
 )
+```
 
-sf_by_country <- (
-  sf_all
-  %>% group_by(country)
-  %>% summarise(
-    geometry = fix_geometry(st_union(geometry))
+### Baseline Map
+
+Data from: https://open.africa/dataset/africa-shapefiles
+
+```{r}
+base_box <- (
+  st_bbox(c(xmin = 10, ymin = -36.3, xmax = 42.7, ymax = -7.2))
+  %>% st_as_sfc()
+  %>% st_set_crs(4326)
+)
+sf_base <- (
+  st_read(
+    file.path(
+      geo_data_dir,
+      "Africa_admin0",
+      "afr_g2014_2013_0.shp"
+    )
   )
-  %>% ungroup()
+  %>% st_crop(base_box)
+  %>% rename_with(str_to_lower)
+  %>% st_transform(3857)
+  %>% st_simplify(dTolerance = 2000)
+  %>% st_transform(4326)
 )
 ```
 
@@ -308,14 +318,19 @@ rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
   %>% filter(country != "Lesotho")
   %>% ggplot()
   + geom_sf(
+    data = sf_base %>% filter(!(adm0_name %in% countries)),
+    color = "black",
+    linewidth = 0.6
+  )
+  + geom_sf(
     mapping = aes(fill = heat),
     color = "black",
     linewidth = 0.2
   )
   + geom_sf(
-    data = sf_by_country %>% filter(country != "Lesotho"),
+    data = sf_base %>% filter(adm0_name %in% countries),
     color = "black",
-    linewidth = 1.4,
+    linewidth = 1,
     fill = NA
   )
   + paletteer::scale_fill_paletteer_c(
@@ -349,11 +364,6 @@ rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
     fill = "Excess hot days (std.)"
   )
 )
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("map_heat_", heat_label, "_", viol_label, ".svg")
-)
 ```
 
 ```{r}
@@ -369,12 +379,12 @@ rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
   + geom_sf(
     mapping = aes(fill = heat),
     color = "black",
-    linewidth = 0.2
+    linewidth = 0.4
   )
   + geom_sf(
-    data = sf_by_country %>% filter(country == "Lesotho"),
+    data = sf_base %>% filter(adm0_name == "Lesotho"),
     color = "black",
-    linewidth = 1.4,
+    linewidth = 2.5,
     fill = NA
   )
   + paletteer::scale_fill_paletteer_c(
@@ -397,12 +407,6 @@ rng_heat <- range(df_heat_viol_adm$heat, na.rm = TRUE)
     fill = "Excess hot days (std.)"
   )
 )
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("map_heat_", heat_label, "_", viol_label, "_LSO.svg"),
-  bg = "transparent"
-)
 ```
 
 ## Violence
@@ -418,14 +422,19 @@ rng_sv <- range(df_heat_viol_adm$sv, na.rm = TRUE)
   %>% filter(country != "Lesotho")
   %>% ggplot()
   + geom_sf(
-    mapping = aes(fill = sv),
+    data = sf_base %>% filter(!(adm0_name %in% countries)),
     color = "black",
-    linewidth = 0.1
+    linewidth = 0.6
   )
   + geom_sf(
-    data = sf_by_country %>% filter(country != "Lesotho"),
+    mapping = aes(fill = sv),
     color = "black",
-    linewidth = 1.4,
+    linewidth = 0.2
+  )
+  + geom_sf(
+    data = sf_base %>% filter(adm0_name %in% countries),
+    color = "black",
+    linewidth = 1,
     fill = NA
   )
   + paletteer::scale_fill_paletteer_c(
@@ -458,11 +467,6 @@ rng_sv <- range(df_heat_viol_adm$sv, na.rm = TRUE)
     fill = "Victimisation (%)"
   )
 )
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("map_sv_", heat_label, "_", viol_label, ".svg")
-)
 ```
 
 ```{r}
@@ -478,12 +482,12 @@ rng_sv <- range(df_heat_viol_adm$sv, na.rm = TRUE)
   + geom_sf(
     mapping = aes(fill = sv),
     color = "black",
-    linewidth = 0.2
+    linewidth = 0.4
   )
   + geom_sf(
-    data = sf_by_country %>% filter(country == "Lesotho"),
+    data = sf_base %>% filter(adm0_name == "Lesotho"),
     color = "black",
-    linewidth = 1.4,
+    linewidth = 2.5,
     fill = NA
   )
   + paletteer::scale_fill_paletteer_c(
@@ -504,12 +508,6 @@ rng_sv <- range(df_heat_viol_adm$sv, na.rm = TRUE)
   + labs(
     fill = label_map[["sv"]]
   )
-)
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("map_sv_", heat_label, "_", viol_label, "_LSO.svg"),
-  bg = "transparent"
 )
 ```
 
@@ -556,62 +554,6 @@ df_model <- (
     ),
     heat := scale(!!sym(heat_var)),
     sample_weight = country_total_n * sample_weight / country_sample_weight
-  )
-)
-```
-
-```{r}
-(
-  df_heat_viol
-  %>% select(c(date, all_of(vars)))
-  %>% na.omit()
-  %>% merge(
-    sf_vacs %>% as.data.frame() %>% select(country, adm_name),
-    by = c("country", "adm_name"),
-    all.x = TRUE
-  )
-  %>% rename(
-    heat = !!sym(heat_var)
-  )
-  %>% group_by(country, adm_name)
-  %>% summarise(
-    min_date = min(date),
-    max_date = max(date),
-    n_dates = length(unique(date)),
-    min_heat = min(heat),
-    max_heat = max(heat),
-    n_heat = length(unique(heat)),
-    .groups = "drop"
-  )
-  %>% ungroup()
-  %>% mutate(
-    date_range = max_date - min_date,
-    heat_range = max_heat - min_heat
-  )
-  %>% select(
-    country,
-    adm_name,
-    n_dates,
-    date_range, 
-    n_heat,
-    heat_range
-  )
-  # %>% count(
-  #   n_heat,
-  #   sort = TRUE
-  # )
-  # %>% mutate(
-  #   prop = n / sum(n)
-  # )
-  %>% filter(
-    n_heat > 1,
-    n_heat < 6
-  )
-  # %>% summarise(
-  #   tot_prop = sum(prop)
-  # )
-  %>% summarise(
-    mean_range = mean(date_range)
   )
 )
 ```
@@ -684,8 +626,20 @@ fit_ranint_adm_clu <- brm(
   refresh = 1000,
   warmup = warmup,
   iter = iter,
-  # control = list(adapt_delta = adapt_delta),
   sample_prior = TRUE
+)
+```
+
+### Save Model
+
+```{r}
+saveRDS(
+  fit_ranint_adm_clu, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_ranint_adm_clu_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
 )
 ```
 
@@ -917,7 +871,7 @@ generate_cont_marginal_df(
     ndraws = min(ndraws(fit_ranint_adm_clu), 4000)
   )
   + labs(
-    y = "Victimisation (%)"
+    y = "Indoor\nvictimisation (%)"
   )
 )
 ggsave(
@@ -1010,16 +964,11 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Heat Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio\n(Indoor)"
   )
 )
 
 p1
-
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("heat_post_", heat_label, "_", viol_label, "_adm_clu.png")
-# )
 ```
 
 ### Calibration Checks
@@ -1032,10 +981,6 @@ p1
   + scale_y_continuous(
     limits = c(0, 0.58)
   )
-)
-ggsave(
-  path = fig_dir,
-  filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_ranint_adm_clu.svg")
 )
 ```
 
@@ -1051,12 +996,8 @@ ggsave(
     legend.position.inside = c(0.92, 0.8)
   )
   + labs(
-    y = "Victimisation (%)"
+    y = "Indoor\nvictimisation (%)"
   )
-)
-ggsave(
-  path = fig_dir,
-  filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_ranint_adm_clu.svg")
 )
 ```
 
@@ -1101,9 +1042,20 @@ fit_fix_int_uh <- brm(
   refresh = 1000,
   warmup = warmup,
   iter = iter,
-  # control = list(adapt_delta = adapt_delta),
-  # sample_prior = "only"
   sample_prior = TRUE
+)
+```
+
+### Save Model
+
+```{r}
+saveRDS(
+  fit_fix_int_uh, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_fix_int_uh_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
 )
 ```
 
@@ -1329,10 +1281,6 @@ df_base_sv_by_urb_fix_int_uh_stats <- (
     labels = scales::percent_format(accuracy = 1)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ##### By Country
@@ -1349,12 +1297,8 @@ df_base_sv_by_urb_fix_int_uh_stats <- (
     ndraws = min(ndraws(fit_fix_int_uh), 4000)
   )
   + labs(
-    y = "Victimisation (%)"
+    y = "Indoor\nvictimisation (%)"
   )
-)
-ggsave(
-  path = fig_dir,
-  filename = paste0("marginal_prob_heat_main_effect_by_urb_", heat_label, "_", viol_label, "_fix_int_uh.png")
 )
 ```
 
@@ -1455,13 +1399,8 @@ lims <- c(
   )
   + labs(
     y = "Urbanity",
-    x = "Heat Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio\n(Indoor)"
   )
-)
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("heat_post_", heat_label, "_", viol_label, "_fix_int_uh.png")
 )
 ```
 
@@ -1471,10 +1410,6 @@ ggsave(
 #| fig-width: 3.5
 #| fig-height: 3
 plot_calibration(fit_fix_int_uh, df_model, outcome_var = viol_var)
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ### Posterior Predictive Checks
@@ -1489,10 +1424,6 @@ plot_calibration(fit_fix_int_uh, df_model, outcome_var = viol_var)
     legend.position.inside = c(0.92, 0.8)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ## Random Intercepts by admin level and cluster + Fixed country\*heat interaction
@@ -1536,9 +1467,20 @@ fit_fix_int_ch <- brm(
   refresh = 1000,
   warmup = warmup,
   iter = iter,
-  # control = list(adapt_delta = adapt_delta),
-  # sample_prior = "only"
   sample_prior = TRUE
+)
+```
+
+### Save Model
+
+```{r}
+saveRDS(
+  fit_fix_int_ch, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_fix_int_ch_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
 )
 ```
 
@@ -1740,7 +1682,6 @@ df_base_sv_by_country_fix_int_ch_stats <- (
       expand = expansion(mult = c(0.1, 0.25))
   )
   + scale_x_continuous(
-      # limits = lims,
       labels = scales::percent_format(accuracy = 1)
   )
 ) 
@@ -1764,10 +1705,6 @@ df_base_sv_by_country_fix_int_ch_stats <- (
     labels = scales::percent_format(accuracy = 1)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_fix_int_ch.png")
-# )
 ```
 
 ##### By Country
@@ -1783,12 +1720,8 @@ df_base_sv_by_country_fix_int_ch_stats <- (
     ndraws = min(ndraws(fit_fix_int_ch), 4000)
   )
   + labs(
-    y = "Victimisation (%)"
+    y = "Indoor\nvictimisation (%)"
   )
-)
-ggsave(
-  path = fig_dir,
-  filename = paste0("marginal_prob_heat_main_effect_by_country_", heat_label, "_", viol_label, "_fix_int_ch.png")
 )
 ```
 
@@ -1904,7 +1837,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Heat Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio\n(Indoor)"
   )
 )
 
@@ -1960,7 +1893,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Heat Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio\n(Indoor)"
   )
 )
 
@@ -1971,11 +1904,6 @@ p2 <- (
     heights = c(1, -0.7, 5)
   )
 )
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("heat_post_", heat_label, "_", viol_label, "_fix_int_ch.png")
-)
 ```
 
 ### Calibration Checks
@@ -1984,10 +1912,6 @@ ggsave(
 #| fig-width: 3.5
 #| fig-height: 3
 plot_calibration(fit_fix_int_ch, df_model, outcome_var = viol_var)
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_fix_int_ch.png")
-# )
 ```
 
 ### Posterior Predictive Checks
@@ -2002,10 +1926,6 @@ plot_calibration(fit_fix_int_ch, df_model, outcome_var = viol_var)
     legend.position.inside = c(0.92, 0.8)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_fix_int_ch.png")
-# )
 ```
 
 ## Random slope by country
@@ -2051,9 +1971,21 @@ fit_ranef_cou <- brm(
   refresh = 1000,
   warmup = warmup,
   iter = iter,
-  control = list(adapt_delta = 0.97),
-  # sample_prior = "only"
+  control = list(adapt_delta = 0.99),
   sample_prior = TRUE
+)
+```
+
+### Save Model
+
+```{r}
+saveRDS(
+  fit_ranef_cou, 
+  file = file.path(
+    out_dir, 
+    paste0("fit_ranef_cou_", heat_label, "_", viol_label, ".rds"), 
+    fsep = "/"
+  )
 )
 ```
 
@@ -2279,10 +2211,6 @@ df_base_sv_by_country_ranef_cou_stats <- (
     labels = scales::percent_format(accuracy = 1)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("marginal_prob_heat_main_effect_", heat_label, "_", viol_label, "_ranef_cou.png")
-# )
 ```
 
 ##### By Country
@@ -2299,12 +2227,8 @@ df_base_sv_by_country_ranef_cou_stats <- (
     cov = "heat"
   )
   + labs(
-    y = "Victimisation (%)"
+    y = "Indoor\nvictimisation (%)"
   )
-)
-ggsave(
-  path = fig_dir,
-  filename = paste0("marginal_prob_heat_main_effect_by_country_", heat_label, "_", viol_label, "_ranef_cou.png")
 )
 ```
 
@@ -2439,7 +2363,7 @@ p1 <- (
   )
   + labs(
     y = "Country",
-    x = "Heat Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio\n(Indoor)"
   )
 )
 
@@ -2495,7 +2419,7 @@ p2 <- (
   )
   + labs(
     y = "Country",
-    x = "Heat Risk Odds Ratio"
+    x = "Heat Risk Odds Ratio\n(Indoor)"
   )
 )
 
@@ -2505,11 +2429,6 @@ p2 <- (
     axes = "collect",
     heights = c(1, -0.7, 5)
   )
-)
-
-ggsave(
-  path = fig_dir,
-  filename = paste0("heat_post_", heat_label, "_", viol_label, "_ranef_cou.png")
 )
 ```
 
@@ -2523,10 +2442,6 @@ ggsave(
   + scale_y_continuous(
     limits = c(0, 0.58)
   )
-)
-ggsave(
-  path = fig_dir,
-  filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_ranef_cou.svg")
 )
 ```
 
@@ -2542,12 +2457,7 @@ ggsave(
     legend.position.inside = c(0.92, 0.8)
   )
   + labs(
-    y = "Victimisation (%)"
+    y = "Indoor\nvictimisation (%)"
   )
 )
-ggsave(
-  path = fig_dir,
-  filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_ranef_cou.svg")
-)
 ```
-

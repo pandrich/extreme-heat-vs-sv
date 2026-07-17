@@ -15,6 +15,7 @@ data/
 
 # Ignore output folders
 figures/
+model_outputs/
 outputs/
 .quarto/
 _freeze/

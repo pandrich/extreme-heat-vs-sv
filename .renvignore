@@ -10,6 +10,8 @@
 
 # ignore data
 data/
+.RData
+.RDataTmp
 
 # ignore archived notebooks
 notebooks/archive
