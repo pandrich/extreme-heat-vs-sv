@@ -4,9 +4,13 @@ This repository contains the code base used for the analysis reported in the man
 
 ## Data availability
 
-Open access temperature and Universal Thermal Climate Index (UTCI) data collected from the [Climate Data Store](https://cds.climate.copernicus.eu/) is stored for ease of use at [this]() data repository. To run the code, unzip the file into the `data/raw` folder.
+For ease of use, we store the open access data used in our analysis in [this]() data repository.
+It contains:
+- Temperature and Universal Thermal Climate Index (UTCI) data collected from the [Climate Data Store](https://cds.climate.copernicus.eu/)
+- Administrative areas shapefiles were collected from the [DHS Program Spatial Repository](https://spatialdata.dhsprogram.com/boundaries).
+- Age and sex disaggregated population estimates obtained from [WorldPop](https://hub.worldpop.org/geodata/listing?id=139).
 
-Administrative areas shapefiles were collected from the [DHS Program Spatial Repository] (https://spatialdata.dhsprogram.com/boundaries).
+To run the code, unzip the file into a `data/raw` folder.
 
 Access to the Violence Against Children Survey data can be requested through the Together for Girls [portal](https://www.togetherforgirls.org/en/analyzing-public-vacs-data). Note that we specifically asked for the information on the rural/urban status of the respondent location to be included in the datasets.
 

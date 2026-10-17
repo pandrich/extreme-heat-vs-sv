@@ -84,7 +84,6 @@ popf_10_24_moz <- (
 )
 ```
 
-
 ### Namibia
 
 ```{r}
@@ -169,7 +168,6 @@ df_model_excess_hot_days_np_viol <- (
 fit_ranef_cou_excess_hot_days_np_viol <- readRDS(file.path(out_dir, "fit_ranef_cou_excess_hot_days_np_viol.rds"))
 ```
 
-
 # Data Processing
 
 ## Total population by country
@@ -210,7 +208,6 @@ tot_popf_10_24_zwe <- (
   )
 )
 ```
-
 
 ## Affected Population
 
@@ -272,7 +269,6 @@ df_rast_temp_pop <- (
 )
 names(df_rast_temp_pop)[1: length(times)] <- as.character(times)
 ```
-
 
 ## Calculate historical statistics
 
@@ -463,4 +459,3 @@ stats_vict <- generate_single_cont_marginal_by_group_df(
   )
 )
 ```
-

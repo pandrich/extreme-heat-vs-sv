@@ -20,15 +20,6 @@ geo_data_dir <- root("data/raw/geographies")
 proc_data_dir <- root("data/processed")
 dir.create(proc_data_dir, showWarnings = FALSE, recursive = TRUE)
 src_dir <- root("src")
-
-# Parameters
-country_map <- c(
-  "MOZ" = "Mozambique",
-  "ZWE" = "Zimbabwe",
-  "LSO" = "Lesotho",
-  "NAM" = "Namibia",
-  "ZMB" = "Zambia"
-)
 ```
 
 # Functions
