@@ -77,27 +77,6 @@ adm_lso <- (
 )
 ```
 
-```{r}
-# x <- rnorm(1000, 0, 1) 
-# x <- rcauchy(1000, 0, 1)
-m <- c(0.1, 0.3, 0.6)
-alpha <- m / 2 + 1
-
-x <- brms::rdirichlet(alpha = c(alpha[1], alpha[2], alpha[3]), n = 1000) 
-# d <- seq(-10, 10, 0.01)
-# tri_probs <- (10 - abs(d))
-# tri_probs <- tri_probs / sum(tri_probs)
-# x <- sample(d, replace = TRUE, prob = tri_probs)
-# y <- pnorm(x, 0, 1)
-# y <- pcauchy(x, 0, 1)
-hist(x[, 1], breaks = 30)
-hist(x[, 2], breaks = 30)
-hist(x[, 3], breaks = 30)
-# hist(x, breaks = 50)
-# plot(d, tri_probs)
-```
-
-
 ### Namibia
 
 ```{r}
@@ -247,6 +226,7 @@ vacs_moz <- (
       is.na(sv_1) ~ NA,
       (sv1whr > 88 & sv1ftw > 88) ~ NA,
       (sv_1 == 1 & (is.na(sv1whr) & is.na(sv1ftw))) ~ NA,
+      # Below and in the following are two possible alternative coding for the indoor violence
       # (sv_1 == 1 & (sv1whr %in% c(1:3, 6, 11:13) | sv1ftw %in% c(1:3, 6, 11:13))) ~ 1,
       (sv_1 == 1 & (sv1whr %in% c(1:2) | sv1ftw %in% c(1:2))) ~ 1,
       .default = 0
@@ -545,42 +525,6 @@ vacs_moz <- (
     sv_out
   )
 )
-```
-
-```{r}
-# (
-#   vacs_moz
-#   %>% filter(
-#     is.na(sv_np)
-#   )
-#   %>% select(
-#     sv_1,
-#     svtch,
-#     sv112m,
-#     sv1ft12,
-#     sv_2,
-#     svafssx,
-#     svafsany,
-#     sv212m,
-#     sv2ft12,
-#     sv_3,
-#     svpfssx,
-#     svpfsany,
-#     sv312m,
-#     sv3ft12,
-#     sv_4,
-#     svprssx,
-#     svprsany,
-#     sv412m,
-#     sv4ft12,
-#     sv_5,
-#     svaffsx,
-#     svafsxany,
-#     sv512m,
-#     sv5ft12
-#   )
-# )
-#     
 ```
 
 ### Zimbabwe
@@ -908,33 +852,6 @@ vacs_zwe <- (
     sv_out
   )
 )
-```
-
-```{r}
-# (
-#   vacs_zwe
-#   %>% filter(
-#     is.na(sv_4)
-#   )
-#   %>% select(
-#     sv_1,
-#     q600,
-#     q602,
-#     q612,
-#     sv_2,
-#     q700,,
-#     q702,
-#     q712,
-#     sv_3,
-#     q800,
-#     q802,
-#     q815,
-#     sv_4,
-#     q900,
-#     q902,
-#     q914
-#   )
-# )
 ```
 
 ### Lesotho
@@ -1331,41 +1248,6 @@ vacs_lso <- (
     sv_out
   )
 )
-```
-
-```{r}
-# (
-#   vacs_lso
-#   %>% filter(
-#     is.na(sv_5)
-#   )
-#   %>% select(
-#     sv_1,
-#     q600,
-#     q602,
-#     q609,
-#     sv_2,
-#     q700a,
-#     q700b,
-#     q702,
-#     q709,
-#     sv_3,
-#     q800a,
-#     q800b,
-#     q802,
-#     q810,
-#     sv_4,
-#     q900a,
-#     q900b,
-#     q902,
-#     q909,
-#     sv_5,
-#     q1000a,
-#     q1000b,
-#     q1002,
-#     q1009
-#   )
-# )
 ```
 
 ### Namibia
@@ -1770,42 +1652,9 @@ vacs_nam <- (
 )
 ```
 
-```{r}
-# (
-#   vacs_nam
-#   %>% filter(
-#     is.na(sv_5)
-#   )
-#   %>% select(
-#     sv_1,
-#     q600,
-#     q602,
-#     q609,
-#     sv_2,
-#     q700a,
-#     q700b,
-#     q702,
-#     q709,
-#     sv_3,
-#     q800a,
-#     q800b,
-#     q802,
-#     q810,
-#     sv_4,
-#     q900a,
-#     q900b,
-#     q902,
-#     q909,
-#     sv_5,
-#     q1000a,
-#     q1000b,
-#     q1002,
-#     q1009
-#   )
-# )
-```
-
 ### Zambia
+
+Zambia has two separate surveys for men and women that we combine.
 
 #### Female
 
@@ -2169,32 +2018,6 @@ vacs_zmb <- (
     sv_out
   )
 )
-```
-
-```{r}
-# (
-#   vacs_zmb
-#   %>% filter(
-#     is.na(sv_4)
-#   )
-#   %>% select(
-#     sv_1,
-#     q700,
-#     q702,
-#     q712,
-#     sv_2,
-#     q800,
-#     q802,
-#     q812,
-#     sv_3,
-#     q900,
-#     q902,
-#     q915,
-#     sv_4,
-#     q1002,
-#     q1014
-#   )
-# )
 ```
 
 # Combine
