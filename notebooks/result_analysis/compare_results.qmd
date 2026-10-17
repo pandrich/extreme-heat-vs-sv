@@ -1,5 +1,5 @@
 ---
-title: "Combine model results"
+title: "Compare model results"
 project:
   output-dir: outputs
 date: last-modified
@@ -40,6 +40,8 @@ df_temp_np <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_hot_da
 df_temp_ip <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_hot_days_ip_viol.csv"), show_col_types = FALSE)
 df_temp_rel <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_hot_days_rel_viol.csv"), show_col_types = FALSE)
 df_temp_nrel <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_hot_days_nrel_viol.csv"), show_col_types = FALSE)
+df_temp_in <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_hot_days_in_viol.csv"), show_col_types = FALSE)
+df_temp_out <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_hot_days_out_viol.csv"), show_col_types = FALSE)
 
 df_max_temp_np <- read_csv(file.path(proc_data_dir, "heat_effect_stats_max_temp_roll_np_viol.csv"), show_col_types = FALSE)
 df_utci_np <- read_csv(file.path(proc_data_dir, "heat_effect_stats_excess_utci_above_1sd_days_np_viol.csv"), show_col_types = FALSE)
@@ -53,7 +55,9 @@ df_temp <- (
     df_temp_np, 
     df_temp_ip,
     df_temp_rel,
-    df_temp_nrel
+    df_temp_nrel,
+    df_temp_in,
+    df_temp_out
   )
   %>% mutate(
     model = factor(model, levels = c("Spatial correlation", "Random slopes", "Base model"))
@@ -76,7 +80,7 @@ df_others <- (
 
 ```{r}
 #| fig-width: 6.5
-#| fig-height: 3
+#| fig-height: 4
 
 dodge <- ggstance::position_dodgev(height = 0.8)
 
@@ -145,7 +149,7 @@ lims <- c(
     legend.title = element_text(size = 14),
     legend.text = element_text(size = 13),
     legend.position = "inside",
-    legend.position.inside = c(0.8, 0.25)
+    legend.position.inside = c(0.8, 0.2)
   )
   + labs(
     x = "Population Level Heat Risk Odds Ratio",
