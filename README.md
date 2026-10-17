@@ -49,7 +49,6 @@ These notebooks should be run in the order described below to create the relevan
 | 3_create_utci_datasets.qmd | Builds the longitudinal daily UTCI dataset. | 
 | 4_preprocess_temp_utci_data.qmd | Create dataset with the 12-month look-back heat variables. Some visualizations are added for the heat variables exploration.  |
 | 5_combine_heat_viol.qmd| Combine the violence survey and heat datasets. From the heat datasets the dates that match the survey dates are selected.  |
-|-----|-----|
 
 #### Modelling 
 
@@ -67,7 +66,6 @@ The notebooks below can be used to replicate and explore all models described in
 | temp_above_1sd_out_viol.qmd | Runs the primary exposure models with sexual violence that occurred outside the family setting as the target variable. | 
 | max_roll_temp_np_viol.qmd | Runs the models with non-partner sexual violence as the target variable and an alternative definition of high temperature exposure based on the mean maximum daily temperature over 3-day rolling windows. See the manuscript and the function `calculate_temp_12m_stats` in `src/data_processing.R` for more details. | 
 | utci_above_1sd_np_viol.qmd | Runs the models with non-partner sexual violence as the target variable and an alternative definition of high heat exposure based on the Universal Thermal Comfort Index. See the manuscript and the function `calculate_utci_12m_stats` in `src/data_processing.R` for more details. | 
-|-----|-----|
 
 #### Result Analysis
 
@@ -77,6 +75,5 @@ We use these notebooks to compare the results of models using different exposure
 |--------|---------------|
 | compare_results.qmd | Compare results across models with different exposure and target variables. |
 | calculate_victimisation_statistics.qmd | Calculate estimates for table Ⅰ in the manuscript. |
-|-----|-----|
 
 
