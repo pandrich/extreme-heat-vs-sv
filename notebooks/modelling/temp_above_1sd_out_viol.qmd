@@ -86,8 +86,8 @@ covars <- c(
 vars <- c(covars, heat_var)
 
 # Computation settings
-warmup = 500
-iter = 2000
+warmup = 1000
+iter = 3000
 ```
 
 # Functions
@@ -976,11 +976,6 @@ p1 <- (
 )
 
 p1
-
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("heat_post_", heat_label, "_", viol_label, "_adm_clu.png")
-# )
 ```
 
 ### Calibration Checks
@@ -1006,7 +1001,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -1435,10 +1430,6 @@ ggsave(
 #| fig-width: 3.5
 #| fig-height: 3
 plot_calibration(fit_fix_int_uh, df_model, outcome_var = viol_var)
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ### Posterior Predictive Checks
@@ -1453,10 +1444,6 @@ plot_calibration(fit_fix_int_uh, df_model, outcome_var = viol_var)
     legend.position.inside = c(0.92, 0.8)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ## Random Intercepts by admin level and cluster + Fixed country\*heat interaction
@@ -2499,7 +2486,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranef_cou, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranef_cou, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -2556,8 +2543,8 @@ fit_sp <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 3000,
+  warmup = warmup,
+  iter = iter,
   sample_prior = TRUE
 )
 ```
@@ -2919,7 +2906,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_sp, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_sp, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)

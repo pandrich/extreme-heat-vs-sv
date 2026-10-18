@@ -4,7 +4,7 @@ This repository contains the code base used for the analysis reported in the man
 
 ## Data availability
 
-For ease of use, we store the open access data used in our analysis in [this]() data repository.
+For ease of use, we store the open access data used in our analysis in [this](https://zenodo.org/records/23436196) data repository.
 It contains:
 - Temperature and Universal Thermal Climate Index (UTCI) data collected from the [Climate Data Store](https://cds.climate.copernicus.eu/)
 - Administrative areas shapefiles were collected from the [DHS Program Spatial Repository](https://spatialdata.dhsprogram.com/boundaries).
@@ -12,28 +12,35 @@ It contains:
 
 To run the code, unzip the file into a `data/raw` folder.
 
-Access to the Violence Against Children Survey data can be requested through the Together for Girls [portal](https://www.togetherforgirls.org/en/analyzing-public-vacs-data). Note that we specifically asked for the information on the rural/urban status of the respondent location to be included in the datasets.
+Access to the Violence Against Children Survey data can be requested through the Together for Girls [portal](https://www.togetherforgirls.org/en/analyzing-public-vacs-data). Note that we specifically asked for the information on the rural/urban status of the respondent location to be included in the datasets. The following files with the raw survey data should be added to the folder `data/raw/vacs`:
+- lesotho_pud_rurban.dta
+- mozambique_pud_rurban.dta
+- namibia_pud_rurban.dta
+- zambiaf_pud_rurban.dta
+- zambiam_pud_rurban.dta
+- zimbabwe_pud_rurban.dta
 
 ## Run the code
 
 The analysis is structured in a series of notebooks covering data processing and modeling steps (as described below).
 The `src` folder contains files where we define helper functions used for data manipulation and plotting.
 
-The code was created using R version 4.5.2 and was tested using RStudio version 2025.09.2+418. renv version 1.1.5 was used to manage package dependencies, documented in the `renv.lock` file.
+The code was created using R version 4.5.2 and was tested using RStudio version 2025.09.2+418. renv version 1.1.5 was used to manage package dependencies, documented in the `renv.lock` file. As an example, below we describe the steps to run the code from within RStudio.
 
 ### Setup the coding environment
 
-Before running the code locally create the coding environments.
+After cloning the repo:
 
 1. Open the project file `extreme-heat-vs-sv.Rproj` in RStudio.
-2. In the console activate the project environment
+2. If renv is not installed, in the console run:
+   ```
+   install.packages("renv")
+   ```
+4. Activate the project environment
 	```
 	renv::init()
 	```
-3. Select 1 to restore the environment from the existing lock file.
-
-CmdStan and cmdstanr need to be separately installed following the instructions [here](https://mc-stan.org/cmdstanr/)
-
+5. Select 1 to restore the environment from the existing lock file.
 
 ### Notebook codebook
 
@@ -65,7 +72,6 @@ The notebooks below can be used to replicate and explore all models described in
 | temp_above_1sd_ip_viol_only_live_with_part.qmd | Runs the primary exposure models with intimate partner sexual violence as the target variable, for the subset of respondents who currently live with a partner. |
 | temp_above_1sd_nrel_viol.qmd | Runs the primary exposure models with sexual violence by a non-relative perpetrator as the target variable. | 
 | temp_above_1sd_rel_viol.qmd| Runs the primary exposure models with sexual violence by a relative perpetrator as the target variable.|
-| temp_above_1sd_rel_viol_only_live_with_rel.qmd| Runs the primary exposure models with sexual violence by a relative perpetrator as the target variable, for the subset of respondents who currently live with a relative.|
 | temp_above_1sd_in_viol.qmd | Runs the primary exposure models with sexual violence that occurred in a family setting as the target variable. | 
 | temp_above_1sd_out_viol.qmd | Runs the primary exposure models with sexual violence that occurred outside the family setting as the target variable. | 
 | max_roll_temp_np_viol.qmd | Runs the models with non-partner sexual violence as the target variable and an alternative definition of high temperature exposure based on the mean maximum daily temperature over 3-day rolling windows. See the manuscript and the function `calculate_temp_12m_stats` in `src/data_processing.R` for more details. | 
@@ -79,5 +85,3 @@ We use these notebooks to compare the results of models using different exposure
 |--------|---------------|
 | compare_results.qmd | Compare results across models with different exposure and target variables. |
 | calculate_victimisation_statistics.qmd | Calculate estimates for table Ⅰ in the manuscript. |
-
-

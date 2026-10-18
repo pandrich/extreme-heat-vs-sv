@@ -88,8 +88,8 @@ covars <- c(
 vars <- c(covars, heat_var)
 
 # Computation settings
-warmup = 500
-iter = 2000
+warmup = 1000
+iter = 3000
 ```
 
 # Functions
@@ -209,6 +209,8 @@ sf_all <- (
 
 ### Baseline Map
 
+We load a couple of maps for visualizing the data context below.
+
 Data from: https://open.africa/dataset/africa-shapefiles
 
 ```{r}
@@ -234,6 +236,8 @@ sf_base <- (
 ```
 
 ### World Map
+
+Note that a maptiler API key is necessary to load the map below. See the maptiler [website](https://docs.maptiler.com/guides/credentials/api-key/) for more information.
 
 ```{r}
 world_box <- (
@@ -295,7 +299,7 @@ Calculate average survey time range at the administrative unit level
   %>% select(c(date, all_of(vars)))
   %>% na.omit()
   %>% merge(
-    sf_vacs %>% as.data.frame() %>% select(country, adm_name),
+    sf_all %>% as.data.frame() %>% select(country, adm_name),
     by = c("country", "adm_name"),
     all.x = TRUE
   )
@@ -704,13 +708,6 @@ df_model <- (
     heat := scale(!!sym(heat_var)),
     sample_weight = country_total_n * sample_weight / country_sample_weight
   )
-)
-```
-
-```{r}
-(
-  df_model
-  %>% count(country)
 )
 ```
 
@@ -1165,7 +1162,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -1181,6 +1178,8 @@ ggsave(
 ```
 
 ## Random Intercepts by admin level and cluster + Fixed urbanity\*heat interaction
+
+We test also the mediating effect of living in an urban/rural area but do not find evidence of a difference in the impact that heat has in the two types of areas. We do not include this result in the manuscript discussion.
 
 ```{r}
 set.seed(seed)
@@ -1436,7 +1435,6 @@ df_base_sv_by_urb_fix_int_uh_stats <- (
       expand = expansion(mult = c(0.15, 0.7))
   )
   + scale_x_continuous(
-      # limits = lims,
       labels = scales::percent_format(accuracy = 1)
   )
 ) 
@@ -1598,10 +1596,6 @@ ggsave(
 #| fig-width: 3.5
 #| fig-height: 3
 plot_calibration(fit_fix_int_uh, df_model, outcome_var = viol_var)
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("calibration_plot_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ### Posterior Predictive Checks
@@ -1616,10 +1610,6 @@ plot_calibration(fit_fix_int_uh, df_model, outcome_var = viol_var)
     legend.position.inside = c(0.92, 0.8)
   )
 )
-# ggsave(
-#   path = fig_dir,
-#   filename = paste0("ppc_by_adm_main_effect_", heat_label, "_", viol_label, "_fix_int_uh.png")
-# )
 ```
 
 ## Random Intercepts by admin level and cluster + Fixed age group\*heat interaction
@@ -2026,7 +2016,6 @@ df_base_sv_by_country_fix_int_ch_stats <- (
       expand = expansion(mult = c(0.1, 0.25))
   )
   + scale_x_continuous(
-      # limits = lims,
       labels = scales::percent_format(accuracy = 1)
   )
 ) 
@@ -2817,7 +2806,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranef_cou, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranef_cou, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -2874,8 +2863,8 @@ fit_sp <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 3000,
+  warmup = warmup,
+  iter = iter,
   sample_prior = TRUE
 )
 ```
@@ -3237,7 +3226,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_sp, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_sp, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -3296,8 +3285,8 @@ fit_sp_ranef <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 3000,
+  warmup = warmup,
+  iter = iter,
   control = list(adapt_delta = 0.98),
   sample_prior = TRUE
 )
@@ -3785,7 +3774,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_sp_ranef, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_sp_ranef, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -3834,8 +3823,8 @@ fit_sp_fixed_ch <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 3000,
+  warmup = warmup,
+  iter = iter,
   control = list(adapt_delta = 0.95),
   sample_prior = TRUE
 )
@@ -4303,7 +4292,7 @@ p2 <- (
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_sp_fixed_ch, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_sp_fixed_ch, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)

@@ -86,8 +86,8 @@ covars <- c(
 vars <- c(covars, heat_var)
 
 # Computation settings
-warmup = 500
-iter = 2000
+warmup = 1000
+iter = 3000
 ```
 
 # Functions
@@ -1004,7 +1004,7 @@ p1
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -1018,14 +1018,14 @@ p1
 set.seed(seed)
 stanvars <- stanvar(7, "num_pred")
 
-prior_list_fix_int_cc <- c(
+prior_list_fix_int_ch <- c(
   prior(student_t(3, -2, 2), class = "Intercept"),
   prior(normal(0, 0.8 / sqrt(num_pred)), class = "b"),
   prior(exponential(1/0.2), class = "sd"),
   prior(dirichlet(1), class = "simo", coef = "moschool_level1")
 )
 
-form_fix_int_cc <- bf(
+form_fix_int_ch <- bf(
   as.formula(
     paste(
       viol_var,
@@ -1043,10 +1043,10 @@ form_fix_int_cc <- bf(
     )
   )
 )
-fit_fix_int_cc <- brm(
-  formula = form_fix_int_cc,
+fit_fix_int_ch <- brm(
+  formula = form_fix_int_ch,
   family = bernoulli("logit"),
-  prior = prior_list_fix_int_cc,
+  prior = prior_list_fix_int_ch,
   data = df_model,
   stanvars = stanvars,
   seed = seed,
@@ -1061,10 +1061,10 @@ fit_fix_int_cc <- brm(
 
 ```{r}
 saveRDS(
-  fit_fix_int_cc, 
+  fit_fix_int_ch, 
   file = file.path(
     out_dir, 
-    paste0("fit_fix_int_cc_", heat_label, "_", viol_label, ".rds"), 
+    paste0("fit_fix_int_ch_", heat_label, "_", viol_label, ".rds"), 
     fsep = "/"
   )
 )
@@ -1076,7 +1076,7 @@ saveRDS(
 #| fig-width: 12
 #| fig-height: 12
 bayesplot::mcmc_pairs(
-  as.array(fit_fix_int_cc), 
+  as.array(fit_fix_int_ch), 
   pars = c(
     "b_Intercept", 
     "b_rural",
@@ -1087,7 +1087,7 @@ bayesplot::mcmc_pairs(
     "sd_adm_name__Intercept",
     "sd_adm_name:cluster__Intercept"
   ),
-  np = nuts_params(fit_fix_int_cc),
+  np = nuts_params(fit_fix_int_ch),
   np_style = bayesplot::pairs_style_np(
     div_color = "green",
     div_shape = 20,
@@ -1097,15 +1097,15 @@ bayesplot::mcmc_pairs(
 ```
 
 ```{r}
-plot(fit_fix_int_cc, variable = "prior_b", regex = TRUE, nvariables = 3)
+plot(fit_fix_int_ch, variable = "prior_b", regex = TRUE, nvariables = 3)
 ```
 
 ```{r}
-plot(fit_fix_int_cc, variable = "b_rural", regex = TRUE, nvariables = 3)
+plot(fit_fix_int_ch, variable = "b_rural", regex = TRUE, nvariables = 3)
 ```
 
 ```{r}
-bayestestR::effective_sample(fit_fix_int_cc)
+bayestestR::effective_sample(fit_fix_int_ch)
 ```
 
 ### Model Output
@@ -1116,7 +1116,7 @@ bayestestR::effective_sample(fit_fix_int_cc)
 
 ```{r}
 bayestestR::describe_posterior(
-  fit_fix_int_cc,
+  fit_fix_int_ch,
   effects = "all",
   component = "all",
   test = c("p_direction", "p_significance"),
@@ -1128,8 +1128,8 @@ bayestestR::describe_posterior(
 ##### Transformed draws
 
 ```{r}
-trans_post_fix_int_cc <- (
-  fit_fix_int_cc
+trans_post_fix_int_ch <- (
+  fit_fix_int_ch
   %>% as.data.frame()
   %>% select(
     -c(
@@ -1151,7 +1151,7 @@ trans_post_fix_int_cc <- (
 
 ```{r}
 bayestestR::describe_posterior(
-  trans_post_fix_int_cc,
+  trans_post_fix_int_ch,
   effects = "all",
   component = "all",
   test = c(),
@@ -1163,8 +1163,8 @@ bayestestR::describe_posterior(
 #### Baseline
 
 ```{r}
-df_base_sv_by_country_fix_int_cc <- (
-  fit_fix_int_cc
+df_base_sv_by_country_fix_int_ch <- (
+  fit_fix_int_ch
   %>% as_draws_df()
   %>% select(
     b_Intercept,
@@ -1186,8 +1186,8 @@ df_base_sv_by_country_fix_int_cc <- (
   %>% select(country, p_baseline_sv)
 )
 
-df_base_sv_by_country_fix_int_cc_stats <- (
-  df_base_sv_by_country_fix_int_cc
+df_base_sv_by_country_fix_int_ch_stats <- (
+  df_base_sv_by_country_fix_int_ch
   %>% group_by(country)
   %>% summarise(
     median_p_baseline_sv = median(p_baseline_sv, na.rm = TRUE),
@@ -1206,7 +1206,7 @@ df_base_sv_by_country_fix_int_cc_stats <- (
 #| fig-heigh: 3
 (
   ggplot(
-    data = df_base_sv_by_country_fix_int_cc,
+    data = df_base_sv_by_country_fix_int_ch,
     mapping = aes(
       y = fct_reorder(country, p_baseline_sv, .fun = ~ -median(.)),
       x = p_baseline_sv
@@ -1223,7 +1223,7 @@ df_base_sv_by_country_fix_int_cc_stats <- (
       fill = "#FDD0A2FF"
   )
   + geom_segment(
-      data = df_base_sv_by_country_fix_int_cc_stats,
+      data = df_base_sv_by_country_fix_int_ch_stats,
       aes(y = country, yend = country, x = lower2_p, xend = upper2_p),
       linewidth = 1,
       alpha = 0.4,
@@ -1231,7 +1231,7 @@ df_base_sv_by_country_fix_int_cc_stats <- (
       inherit.aes = FALSE
   )
   + geom_segment(
-      data = df_base_sv_by_country_fix_int_cc_stats,
+      data = df_base_sv_by_country_fix_int_ch_stats,
       aes(y = country, yend = country, x = lower1_p, xend = upper1_p),
       linewidth = 1.5,
       alpha = 0.7,
@@ -1239,7 +1239,7 @@ df_base_sv_by_country_fix_int_cc_stats <- (
       inherit.aes = FALSE
   )
   + geom_point(
-      data = df_base_sv_by_country_fix_int_cc_stats,
+      data = df_base_sv_by_country_fix_int_ch_stats,
       aes(y = country, x = median_p_baseline_sv),
       color = "#A63603FF",
       size = 3,
@@ -1282,10 +1282,10 @@ df_base_sv_by_country_fix_int_cc_stats <- (
 #| fig-height: 3
 (
   plot_continuous_marginal(
-    fit_fix_int_cc, 
+    fit_fix_int_ch, 
     df_model, 
     covs = c("heat"),
-    ndraws = min(ndraws(fit_fix_int_cc), 1000)
+    ndraws = min(ndraws(fit_fix_int_ch), 1000)
   )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
@@ -1300,10 +1300,10 @@ df_base_sv_by_country_fix_int_cc_stats <- (
 #| fig-height: 3
 (
   plot_single_continuous_marginal_by_group(
-    fit_fix_int_cc, 
+    fit_fix_int_ch, 
     df_model, 
     cov = "heat",
-    ndraws = min(ndraws(fit_fix_int_cc), 1000)
+    ndraws = min(ndraws(fit_fix_int_ch), 1000)
   )
   + scale_y_continuous(
     labels = scales::percent_format(accuracy = 1)
@@ -1314,8 +1314,8 @@ df_base_sv_by_country_fix_int_cc_stats <- (
 #### Heat Variable Posterior
 
 ```{r}
-df_heat_fix_int_cc <- (
-  fit_fix_int_cc
+df_heat_fix_int_ch <- (
+  fit_fix_int_ch
   %>% as.data.frame()
   %>% mutate(
     `b_countryLesotho:heat` = 0
@@ -1361,12 +1361,12 @@ df_heat_fix_int_cc <- (
 #| fig-height: 3
 
 lims <- c(
-  min(df_heat_fix_int_cc$lower2_val, 0.9), 
-  max(df_heat_fix_int_cc$upper2_val)
+  min(df_heat_fix_int_ch$lower2_val, 0.9), 
+  max(df_heat_fix_int_ch$upper2_val)
 )
 
 p1 <- (
-  df_heat_fix_int_cc
+  df_heat_fix_int_ch
   %>% filter(country == "Overall")
   %>% ggplot(
     mapping = aes(
@@ -1425,7 +1425,7 @@ p1 <- (
 )
 
 p2 <- (
-  df_heat_fix_int_cc
+  df_heat_fix_int_ch
   %>% filter(country != "Overall")
   %>% ggplot(
     mapping = aes(
@@ -1493,7 +1493,7 @@ p2 <- (
 ```{r}
 #| fig-width: 3.5
 #| fig-height: 3
-plot_calibration(fit_fix_int_cc, df_model, outcome_var = viol_var)
+plot_calibration(fit_fix_int_ch, df_model, outcome_var = viol_var)
 ```
 
 ### Posterior Predictive Checks
@@ -1502,7 +1502,7 @@ plot_calibration(fit_fix_int_cc, df_model, outcome_var = viol_var)
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram(fit_fix_int_cc, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_fix_int_ch, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -2029,7 +2029,7 @@ p2 <- (
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranef_cou, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranef_cou, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -2079,8 +2079,8 @@ fit_sp <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 3000,
+  warmup = warmup,
+  iter = iter,
   sample_prior = TRUE
 )
 ```
@@ -2438,7 +2438,7 @@ p1
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_sp, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_sp, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)

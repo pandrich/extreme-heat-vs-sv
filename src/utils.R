@@ -1,28 +1,3 @@
-#' Fix and simplify polygon geometry
-#'
-#' Cleans invalid polygon geometries by repairing topology issues,
-#' removing collapsed geometries, selecting the largest polygon,
-#' and stripping interior holes.
-#'
-#' The geometry is:
-#' \itemize{
-#'   \item transformed to EPSG:3857 for robust geometric operations,
-#'   \item snapped to a fixed precision grid,
-#'   \item repaired using \code{st_make_valid()},
-#'   \item split into polygon components,
-#'   \item reduced to the largest polygon by area,
-#'   \item stripped of interior holes,
-#' }
-#'
-#' @param g An `sf` or `sfc` polygon geometry object.
-#'
-#' @return
-#' An `sfc_POLYGON` object containing a single valid polygon geometry
-#' with holes removed.
-#'
-#' @details
-#' All functions used are from the sf package
-#' 
 fix_geometry <- function(g) {
   g_parts <- (
     g

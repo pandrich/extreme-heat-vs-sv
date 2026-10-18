@@ -86,8 +86,8 @@ covars <- c(
 vars <- c(covars, heat_var)
 
 # Computation settings
-warmup = 500
-iter = 2000
+warmup = 1000
+iter = 3000
 ```
 
 # Functions
@@ -997,7 +997,7 @@ p1
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranint_adm_clu, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -1264,7 +1264,6 @@ df_base_sv_by_urb_fix_int_uh_stats <- (
       expand = expansion(mult = c(0.15, 0.7))
   )
   + scale_x_continuous(
-      # limits = lims,
       labels = scales::percent_format(accuracy = 1)
   )
 ) 
@@ -2458,7 +2457,7 @@ p2 <- (
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_ranef_cou, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_ranef_cou, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
@@ -2511,8 +2510,8 @@ fit_sp <- brm(
   stanvars = stanvars,
   seed = seed,
   refresh = 1000,
-  warmup = 1000,
-  iter = 3000,
+  warmup = warmup,
+  iter = iter,
   sample_prior = TRUE
 )
 ```
@@ -2874,7 +2873,7 @@ ggsave(
 #| fig-width: 9
 #| fig-height: 2
 (
-  plot_ppc_rootogram_weighted(fit_sp, df_model, outcome_var = viol_var)
+  plot_ppc_rootogram(fit_sp, df_model, outcome_var = viol_var)
   + theme(
     legend.position = "inside",
     legend.position.inside = c(0.92, 0.8)
