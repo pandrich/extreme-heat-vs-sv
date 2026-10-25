@@ -87,7 +87,7 @@ vars <- c(covars, heat_var)
 
 # Computation settings
 warmup = 1000
-iter = 3000
+iter = 2000
 ```
 
 # Functions
@@ -1557,7 +1557,7 @@ fit_ranef_cou <- brm(
   seed = seed,
   refresh = 1000,
   warmup = warmup,
-  iter = iter,
+  iter = 2000,
   control = list(adapt_delta = 0.95),
   sample_prior = TRUE
 )
