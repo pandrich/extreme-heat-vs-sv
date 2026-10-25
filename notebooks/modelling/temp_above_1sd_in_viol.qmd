@@ -1977,7 +1977,7 @@ fit_ranef_cou <- brm(
   refresh = 1000,
   warmup = warmup,
   iter = iter,
-  control = list(adapt_delta = 0.99),
+  control = list(adapt_delta = 0.97),
   sample_prior = TRUE
 )
 ```

@@ -27,6 +27,7 @@ root <- rprojroot::has_file("extreme-heat-vs-sv.Rproj")$make_fix_file()
 raw_data_dir <- root("data/raw")
 proc_data_dir <- root("data/processed")
 out_dir <- root("model_outputs")
+src_dir <- root("src")
 ```
 
 # Notebook settings
